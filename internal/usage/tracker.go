@@ -331,6 +331,9 @@ func (t *Tracker) fetchCodexUsage(account auth.Account, generation int) AccountU
 	if !ok {
 		return failedAccount(account, "Missing access token")
 	}
+	if account.IsAccessExpired() {
+		return failedAccount(account, "Access token expired; it renews on this account's next request")
+	}
 	client, endpoint := t.clientAndURL("codex")
 	if _, err := url.Parse(endpoint); err != nil {
 		return failedAccount(account, "Invalid usage endpoint")

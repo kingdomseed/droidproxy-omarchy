@@ -315,6 +315,30 @@ func TestRefreshClearsSnapshotWhenNoEligibleAccounts(t *testing.T) {
 	}
 }
 
+func TestRefreshSkipsCodexRequestWhileAccessTokenIsExpired(t *testing.T) {
+	var calls atomic.Int32
+	env := newTestEnv(t, func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusUnauthorized)
+	}, nil, nil)
+	path := writeAccountFile(t, env.home, "codex-a@b.com.json", map[string]any{
+		"type": "codex", "email": "a@b.com", "access_token": "stale", "refresh_token": "rt",
+	})
+	expiredAt := time.Now().Add(-time.Hour)
+	account := auth.Account{ID: filepath.Base(path), Email: "a@b.com", Type: auth.Codex, FilePath: path, Expired: &expiredAt, CanRefresh: true}
+
+	env.tracker.Refresh([]auth.Account{account}, nil, nil, nil)
+	waitFor(t, func() bool { return !env.tracker.IsRefreshing() })
+
+	accounts := env.tracker.Accounts()
+	if len(accounts) != 1 || accounts[0].Error != "Access token expired; it renews on this account's next request" {
+		t.Fatalf("accounts = %+v", accounts)
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("codex endpoint called %d times", calls.Load())
+	}
+}
+
 func TestRefreshReportsMissingAccessToken(t *testing.T) {
 	env := newTestEnv(t, nil, nil, nil)
 	path := writeAccountFile(t, env.home, "codex-a@b.com.json", map[string]any{"type": "codex", "email": "a@b.com"})
