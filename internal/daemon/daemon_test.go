@@ -361,6 +361,19 @@ func TestDaemonSettingsAndDesktopActions(t *testing.T) {
 	if res := callOK(t, client, "open.url", map[string]any{"url": "file:///etc/passwd"}); res.OK {
 		t.Error("open.url must reject non-http(s) URLs")
 	}
+	if res := callOK(t, client, "settings.set", map[string]any{"key": "windowPrimerEnabled.codex", "value": true}); !res.OK {
+		t.Fatalf("settings.set windowPrimerEnabled.codex = %+v", res)
+	}
+	if res := callOK(t, client, "settings.set", map[string]any{"key": "windowPrimerMinutes.codex", "value": 450}); !res.OK {
+		t.Fatalf("settings.set windowPrimerMinutes.codex = %+v", res)
+	}
+	if st, _ := client.State(); !st.Settings.WindowPrimerEnabledCodex || st.Settings.WindowPrimerMinutesCodex != 450 ||
+		st.Settings.WindowPrimerEnabledClaude || st.Settings.WindowPrimerMinutesClaude != 7*60 {
+		t.Errorf("window primer settings = %+v", st.Settings)
+	}
+	if res := callOK(t, client, "settings.set", map[string]any{"key": "windowPrimerMinutes.codex", "value": 24 * 60}); res.OK {
+		t.Error("a time past midnight must fail")
+	}
 	if res := callOK(t, client, "settings.set", map[string]any{"key": "nonsense", "value": true}); res.OK {
 		t.Error("unknown setting must fail")
 	}

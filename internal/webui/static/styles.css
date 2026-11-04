@@ -717,6 +717,18 @@ body {
   color: var(--dim);
 }
 
+.primer-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.primer-time {
+  padding: 4px 8px;
+  font-size: 13px;
+  color-scheme: dark;
+}
+
 /* ---------- updates ---------- */
 
 .progress {

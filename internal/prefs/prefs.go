@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/nikships/droidproxy-omarchy/internal/events"
 	"github.com/nikships/droidproxy-omarchy/internal/logx"
@@ -249,4 +250,42 @@ func SetProviderEnabled(provider string, enabled bool) error {
 	m := EnabledProviders()
 	m[provider] = enabled
 	return Shared().Set(KeyEnabledProviders, m)
+}
+
+// DefaultWindowPrimerMinutes is 07:00, in minutes after local midnight.
+const DefaultWindowPrimerMinutes = 7 * 60
+
+// Window primer keys are per provider ("claude", "codex", "meta").
+func WindowPrimerEnabledKey(provider string) string   { return "windowPrimerEnabled." + provider }
+func WindowPrimerMinutesKey(provider string) string   { return "windowPrimerMinutes." + provider }
+func WindowPrimerLastFiredKey(provider string) string { return "windowPrimerLastFired." + provider }
+
+// WindowPrimerEnabled reports whether "Auto-start daily" is on for provider.
+func WindowPrimerEnabled(provider string) bool {
+	return Shared().Bool(WindowPrimerEnabledKey(provider), false)
+}
+
+// WindowPrimerMinutes is the chosen time in minutes after local midnight.
+func WindowPrimerMinutes(provider string) int {
+	var v int
+	if Shared().Get(WindowPrimerMinutesKey(provider), &v) {
+		return v
+	}
+	return DefaultWindowPrimerMinutes
+}
+
+// WindowPrimerLastFired is when provider's window was last started, or nil.
+// Stored as unix seconds, like lastUpdateCheck.
+func WindowPrimerLastFired(provider string) *time.Time {
+	var seconds int64
+	if !Shared().Get(WindowPrimerLastFiredKey(provider), &seconds) {
+		return nil
+	}
+	t := time.Unix(seconds, 0)
+	return &t
+}
+
+// SetWindowPrimerLastFired records when provider's window was started.
+func SetWindowPrimerLastFired(provider string, t time.Time) error {
+	return Shared().Set(WindowPrimerLastFiredKey(provider), t.Unix())
 }

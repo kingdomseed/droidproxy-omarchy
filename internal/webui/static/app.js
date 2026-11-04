@@ -687,6 +687,44 @@ const FAST_MODES = [
   { key: "gpt6LunaFastMode", title: "GPT 6 Luna" },
 ];
 
+const WINDOW_PRIMER_PROVIDERS = ["claude", "codex", "meta"];
+
+function primerRow(p) {
+  const enabledKey = "windowPrimerEnabled." + p.id;
+  const minutesKey = "windowPrimerMinutes." + p.id;
+  const enabled = setting(enabledKey, false);
+  const row = el(
+    "div",
+    { class: "fast-row" },
+    el("span", { text: "5-hour window" })
+  );
+  const controls = el("div", { class: "primer-controls" });
+  if (enabled) {
+    const minutes = setting(minutesKey, 7 * 60);
+    const pad = (n) => String(n).padStart(2, "0");
+    const time = el("input", {
+      class: "field primer-time",
+      type: "time",
+      value: pad(Math.floor(minutes / 60)) + ":" + pad(minutes % 60),
+      "aria-label": p.name + " auto-start time",
+    });
+    time.addEventListener("change", () => {
+      const [h, m] = time.value.split(":").map(Number);
+      if (Number.isInteger(h) && Number.isInteger(m)) setSetting(minutesKey, h * 60 + m);
+    });
+    controls.append(time);
+  }
+  controls.append(
+    el("span", {
+      text: "Auto-start daily",
+      title: `Sends one tiny request (a few tokens) per account at this time every day while DroidProxy is running, so your 5-hour ${p.name} window is already underway when you start work and resets sooner during your day.`,
+    }),
+    toggle(enabled, null, (v) => setSetting(enabledKey, v), "Auto-start daily")
+  );
+  row.append(controls);
+  return row;
+}
+
 function accountRow(p, a) {
   const showToggle = (p.accounts || []).length > 1;
   const canDisable = a.disabled || enabledCount(p.id) > 1;
@@ -769,6 +807,7 @@ function providerSection(p) {
       )
     );
   }
+  if (WINDOW_PRIMER_PROVIDERS.includes(p.id)) detail.append(primerRow(p));
   if (p.id === "codex") {
     const fm = el("div", { class: "fast-mode" });
     fm.append(

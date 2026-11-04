@@ -99,6 +99,12 @@ All keys are always present. Strings are never `null`; use `""`.
     "gpt61TerraFastMode": false,
     "gpt6LunaFastMode": false,
     "metaContributorMode": false,
+    "windowPrimerEnabled.claude": false, // "Auto-start daily" 5-hour window
+    "windowPrimerMinutes.claude": 420,   // minutes after local midnight (07:00)
+    "windowPrimerEnabled.codex": false,
+    "windowPrimerMinutes.codex": 420,
+    "windowPrimerEnabled.meta": false,
+    "windowPrimerMinutes.meta": 420,
     "autoCheckUpdates": true,
     "autoInstallUpdates": false
   },
@@ -218,6 +224,7 @@ All keys are always present. Strings are never `null`; use `""`.
 | `oledTheme`, `backgroundOpacity` | bool/number | Stored; legacy QML panel appearance (the web UI is always OLED black). |
 | `gpt6AstraFastMode`, `gpt61SolFastMode`, `gpt61TerraFastMode`, `gpt6LunaFastMode` | bool | ThinkingProxy fast mode. |
 | `metaContributorMode` | bool | Stored; affects Factory model apply. |
+| `windowPrimerEnabled.<p>`, `windowPrimerMinutes.<p>` (`<p>` is `claude`, `codex` or `meta`) | bool / int 0–1439 | "Auto-start daily": once a day at that local time (up to 2 hours late, retried every 5 minutes on failure) the daemon sends one tiny request per enabled account, so the 5-hour window is already running when work starts. Claude and Codex go through ThinkingProxy; Meta goes straight to `api.meta.ai` with each account's key. |
 | `autoCheckUpdates`, `autoInstallUpdates` | bool | Updater behavior. |
 
 ### Action result
@@ -264,6 +271,10 @@ No matching enabled account answers 404 with `error` and the `available`
 accounts. Reads share the per-account polling budget with the settings gauges
 (Claude at most every 5 minutes, others every 15 seconds, longer after a 429),
 so polling in a loop never hits the upstream usage APIs harder than that.
+Meta has no usage endpoint: when an account's stored snapshot is over 60
+seconds old, the read sends a 16-token streamed `/v1/responses` request with
+that account's key and records the quota event it carries. This spends a few
+tokens of Meta quota; a failed probe answers with the stored "as of" values.
 
 ## Not ported
 

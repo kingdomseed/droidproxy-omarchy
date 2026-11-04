@@ -48,7 +48,8 @@ droidproxy uninstall --purge  # also removes DroidProxy's settings
 - **Every model, every reasoning level** -- Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 5.5, GPT 6 Astra, GPT 6.1 Sol, GPT 6.1 Terra, GPT 6 Luna, Gemini 4 Argon, Gemini 3.8 Flash, and more — registered as Factory custom models with their full set of native reasoning levels. Pick the effort per session in Droid's model selector.
 - **Fast Mode** -- Optional `service_tier=priority` for GPT 6 Astra, GPT 6.1 Sol, GPT 6.1 Terra, and GPT 6 Luna. Grok 4.7 Fast is a separate SuperGrok model (`grok-4.7-build-fast`).
 - **Account failover** -- Round-robin by default, or sequential failover that rides one account until its quota runs out.
-- **Usage tracking** -- Claude, Codex, Grok, and Meta Muse OAuth quota windows (5-hour + weekly) as ring gauges in the Settings web app, just like the Mac app.
+- **Usage tracking** -- Claude, Codex, Grok, and Meta Muse OAuth quota windows (5-hour + weekly) as ring gauges in the Settings web app, just like the Mac app. Click a gauge to copy a `curl` for that account's live quota (`GET /droidproxy/usage` on the proxy port), so an agent can check its own quota before it runs out.
+- **Auto-start daily** -- Optional per-provider time for Claude, Codex, and Meta Muse: DroidProxy sends one tiny request per account then, so the 5-hour window is already underway when you start work and resets sooner in your day.
 - **Grok Imagine and GPT Image** -- OpenAI-compatible image generation through your Grok or Codex subscription. See [Image generation skills](#image-generation-skills).
 - **Remote access** -- Optional remote management with a secret key, and a configurable bind address (beta).
 

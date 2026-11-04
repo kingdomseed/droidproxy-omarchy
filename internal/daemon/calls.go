@@ -745,6 +745,19 @@ func (d *Daemon) setSetting(key string, value json.RawMessage) control.CallResul
 		}
 		d.invalidateFactory()
 
+	case "windowPrimerEnabled.claude", "windowPrimerEnabled.codex", "windowPrimerEnabled.meta":
+		if err := setBoolPref(key, value); err != nil {
+			return fail(err)
+		}
+	case "windowPrimerMinutes.claude", "windowPrimerMinutes.codex", "windowPrimerMinutes.meta":
+		var minutes int
+		if len(value) == 0 || json.Unmarshal(value, &minutes) != nil || minutes < 0 || minutes >= 24*60 {
+			return control.Fail("Invalid value.")
+		}
+		if err := prefs.Shared().Set(key, minutes); err != nil {
+			return fail(err)
+		}
+
 	case "autoCheckUpdates":
 		if err := setBoolPref(prefs.KeyAutoCheckUpdates, value); err != nil {
 			return fail(err)

@@ -58,6 +58,12 @@ type Settings struct {
 	GPT61TerraFastMode        bool    `json:"gpt61TerraFastMode"`
 	GPT6LunaFastMode          bool    `json:"gpt6LunaFastMode"`
 	MetaContributorMode       bool    `json:"metaContributorMode"`
+	WindowPrimerEnabledClaude bool    `json:"windowPrimerEnabled.claude"`
+	WindowPrimerMinutesClaude int     `json:"windowPrimerMinutes.claude"`
+	WindowPrimerEnabledCodex  bool    `json:"windowPrimerEnabled.codex"`
+	WindowPrimerMinutesCodex  int     `json:"windowPrimerMinutes.codex"`
+	WindowPrimerEnabledMeta   bool    `json:"windowPrimerEnabled.meta"`
+	WindowPrimerMinutesMeta   int     `json:"windowPrimerMinutes.meta"`
 	AutoCheckUpdates          bool    `json:"autoCheckUpdates"`
 	AutoInstallUpdates        bool    `json:"autoInstallUpdates"`
 }

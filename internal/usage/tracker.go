@@ -235,7 +235,7 @@ func (t *Tracker) UpdateMetaAccounts(metaAccounts []auth.Account) {
 	var fresh []AccountUsage
 	for _, a := range metaAccounts {
 		if !a.Disabled {
-			fresh = append(fresh, t.fetchMetaUsage(a))
+			fresh = append(fresh, t.storedMetaUsage(a))
 		}
 	}
 	t.mu.Lock()
@@ -432,12 +432,19 @@ func (t *Tracker) fetchGrokUsage(account auth.Account) AccountUsage {
 
 // Meta.
 
-// fetchMetaUsage reads the local last-observed store only. Meta has no usage
-// endpoint: the 5-hour window and weekly percents arrive as
-// `response.subscription_usage` SSE events that ThinkingProxy sniffs into the
-// store, so unlike the other providers this never touches the network and
-// only the account serving Responses traffic ever gets observations.
+// fetchMetaUsage probes for a fresh snapshot when the stored one is stale,
+// then reads the store. Meta has no usage endpoint: the 5-hour window and
+// weekly percents arrive as `response.subscription_usage` SSE events that
+// ThinkingProxy sniffs into the store and the probe requests. A failed probe
+// or expired key falls back to the stored snapshot, so a stale card still
+// shows its "as of" time.
 func (t *Tracker) fetchMetaUsage(account auth.Account) AccountUsage {
+	meta.NewUsageProber().Refresh(account.ID, false)
+	return t.storedMetaUsage(account)
+}
+
+// storedMetaUsage is the account's last observed Meta usage, without probing.
+func (t *Tracker) storedMetaUsage(account auth.Account) AccountUsage {
 	t.mu.Lock()
 	readSnapshot := t.metaSnapshots
 	t.mu.Unlock()
