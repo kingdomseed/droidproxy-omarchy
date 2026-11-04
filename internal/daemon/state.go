@@ -119,6 +119,7 @@ func (d *Daemon) State() control.State {
 			updatedAt = a.UpdatedAt.Format(time.RFC3339)
 		}
 		usageRows = append(usageRows, control.UsageAccount{
+			ID:           a.ID,
 			Provider:     a.Provider,
 			ProviderName: a.ProviderName,
 			Email:        a.Email,

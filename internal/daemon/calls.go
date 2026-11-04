@@ -17,6 +17,7 @@ import (
 	"github.com/nikships/droidproxy-omarchy/internal/logx"
 	"github.com/nikships/droidproxy-omarchy/internal/paths"
 	"github.com/nikships/droidproxy-omarchy/internal/prefs"
+	"github.com/nikships/droidproxy-omarchy/internal/usage"
 	"github.com/nikships/droidproxy-omarchy/internal/webui"
 )
 
@@ -204,6 +205,19 @@ func (d *Daemon) Call(ctx context.Context, method string, params json.RawMessage
 
 	case "usage.refresh":
 		d.refreshUsage()
+		return control.OK("")
+
+	case "usage.copyCurl":
+		var p struct {
+			Provider  string `json:"provider"`
+			AccountID string `json:"accountId"`
+		}
+		if !parseParams(params, &p) || p.Provider == "" || p.AccountID == "" {
+			return control.Fail("Invalid parameters.")
+		}
+		if err := desktop.CopyToClipboard(usage.CurlCommand(p.Provider, p.AccountID)); err != nil {
+			return control.Fail("Could not copy: " + err.Error())
+		}
 		return control.OK("")
 
 	case "update.check":

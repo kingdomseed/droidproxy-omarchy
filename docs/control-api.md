@@ -150,6 +150,7 @@ All keys are always present. Strings are never `null`; use `""`.
     "refreshing": false,
     "accounts": [
       {
+        "id": "codex-a@b.com.json",      // account id (auth file name, or Meta account id)
         "provider": "codex",
         "providerName": "Codex",
         "email": "a@b.com",
@@ -201,6 +202,7 @@ All keys are always present. Strings are never `null`; use `""`.
 | `settings.set` | `{"key","value"}` | Set one key from `state.settings` (see below). |
 | `factory.apply` | – | Apply/Re-apply Factory custom models (backup first). |
 | `usage.refresh` | – | Refresh OAuth quota windows. |
+| `usage.copyCurl` | `{"provider","accountId"}` | Copy a `curl` for that account's [usage endpoint](#usage-endpoint) (what clicking a quota gauge does). |
 | `update.check` | – | Check for updates now. |
 | `update.install` | – | Download, verify, install the available update, then restart. |
 | `app.quit` | – | Stop servers and exit the daemon (`systemctl --user stop`). |
@@ -229,6 +231,39 @@ All keys are always present. Strings are never `null`; use `""`.
 alert. `title` is optional (defaults to "DroidProxy"). A result with an empty
 `message` needs no dialog.
 
+
+## Usage endpoint
+
+ThinkingProxy answers `GET /droidproxy/usage` on `:8317` itself (never
+forwarded upstream) with live quota windows as JSON, so an agent can poll its
+own quota and stop before it runs out. Both query parameters are optional:
+`provider` (`codex`, `claude`, `grok`, `meta`) and `account` (auth file
+name, email, or display name). There is no auth or loopback restriction; it
+binds wherever the proxy binds.
+
+```json
+{
+  "generated_at": "2026-11-04T12:00:00Z",
+  "accounts": [
+    {
+      "provider": "codex",
+      "account": "a@b.com",
+      "id": "codex-a@b.com.json",
+      "windows": [
+        { "name": "5-hour", "used_percent": 27.5, "remaining_percent": 72.5,
+          "resets_at": "2026-11-04T14:10:00Z", "resets_in_seconds": 7800 }
+      ],
+      "error": null,
+      "as_of": "2026-11-04T11:59:58Z"
+    }
+  ]
+}
+```
+
+No matching enabled account answers 404 with `error` and the `available`
+accounts. Reads share the per-account polling budget with the settings gauges
+(Claude at most every 5 minutes, others every 15 seconds, longer after a 429),
+so polling in a loop never hits the upstream usage APIs harder than that.
 
 ## Not ported
 

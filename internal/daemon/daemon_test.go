@@ -173,7 +173,7 @@ func startTestDaemon(t *testing.T) (*control.Client, *fakeDesktop) {
 	backend.PgrepPath, backend.PkillPath = "/bin/true", "/bin/true"
 	t.Cleanup(func() { backend.PgrepPath, backend.PkillPath = oldPgrep, oldPkill })
 	oldFactory := proxyFactory
-	proxyFactory = func() proxyServer { return &fakeProxy{} }
+	proxyFactory = func(*Daemon) proxyServer { return &fakeProxy{} }
 	t.Cleanup(func() { proxyFactory = oldFactory })
 	events.Reset()
 	t.Cleanup(events.Reset)
@@ -335,6 +335,14 @@ func TestDaemonSettingsAndDesktopActions(t *testing.T) {
 	}
 	if texts := desk.clipboardTexts(); len(texts) == 0 || texts[len(texts)-1] != "hello world" {
 		t.Errorf("clipboard = %v", texts)
+	}
+
+	if res := callOK(t, client, "usage.copyCurl", map[string]any{"provider": "codex", "accountId": "codex-a@b.com.json"}); !res.OK {
+		t.Fatalf("usage.copyCurl = %+v", res)
+	}
+	wantCurl := "curl -s 'http://127.0.0.1:8317/droidproxy/usage?provider=codex&account=codex-a@b.com.json'"
+	if texts := desk.clipboardTexts(); len(texts) == 0 || texts[len(texts)-1] != wantCurl {
+		t.Errorf("clipboard = %v, want %s", texts, wantCurl)
 	}
 
 	if res := callOK(t, client, "open.url", map[string]any{"url": "https://github.com/router-for-me/CLIProxyAPI"}); !res.OK {

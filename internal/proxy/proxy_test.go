@@ -341,3 +341,33 @@ func splitHostPort(t *testing.T, addr string) (string, int) {
 	fmt.Sscanf(portStr, "%d", &port)
 	return host, port
 }
+
+func TestUsageEndpointIsAnsweredLocally(t *testing.T) {
+	isolateHome(t)
+	p := New()
+	p.DialBackend = func(network, address string) (net.Conn, error) {
+		t.Error("usage endpoint was forwarded to the backend")
+		return nil, fmt.Errorf("unexpected dial")
+	}
+	p.UsageEndpoint = func(requestPath string) (int, []byte, bool) {
+		if requestPath != "/droidproxy/usage?provider=codex" {
+			return 0, nil, false
+		}
+		return 200, []byte(`{"accounts":[]}`), true
+	}
+	client, server := net.Pipe()
+	go func() {
+		p.processRequest([]byte("GET /droidproxy/usage?provider=codex HTTP/1.1\r\nHost: localhost\r\n\r\n"), server)
+		server.Close()
+	}()
+	raw, err := io.ReadAll(client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := string(raw)
+	if !strings.HasPrefix(response, "HTTP/1.1 200 OK\r\n") ||
+		!strings.Contains(response, "Content-Type: application/json\r\n") ||
+		!strings.HasSuffix(response, "\r\n\r\n"+`{"accounts":[]}`) {
+		t.Fatalf("response = %q", response)
+	}
+}

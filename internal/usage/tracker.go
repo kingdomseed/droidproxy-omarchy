@@ -138,23 +138,7 @@ func (t *Tracker) IsRefreshing() bool {
 // accounts are skipped (Meta ignores key expiry: a stale card still shows its
 // "as of" time), and an empty selection clears the snapshot.
 func (t *Tracker) Refresh(codexAccounts, claudeAccounts, grokAccounts, metaAccounts []auth.Account) {
-	var enabled []auth.Account
-	for _, a := range codexAccounts {
-		if !a.Disabled && !a.IsExpired() {
-			enabled = append(enabled, a)
-		}
-	}
-	for _, a := range claudeAccounts {
-		if !a.Disabled && !a.IsExpired() {
-			enabled = append(enabled, a)
-		}
-	}
-	enabled = append(enabled, activeGrokAccounts(grokAccounts)...)
-	for _, a := range metaAccounts {
-		if !a.Disabled {
-			enabled = append(enabled, a)
-		}
-	}
+	enabled := eligibleAccounts(codexAccounts, claudeAccounts, grokAccounts, metaAccounts)
 
 	t.mu.Lock()
 	t.generation++
@@ -182,33 +166,14 @@ func (t *Tracker) Refresh(codexAccounts, claudeAccounts, grokAccounts, metaAccou
 		notify()
 	}
 
-	results := make([]AccountUsage, len(enabled))
-	var wg sync.WaitGroup
-	for i, account := range enabled {
-		wg.Add(1)
-		go func(i int, account auth.Account) {
-			defer wg.Done()
-			switch account.Type {
-			case auth.Claude:
-				results[i] = t.cache.usage(account, func() AccountUsage { return t.fetchClaudeUsage(account, generation) })
-			case auth.Grok:
-				results[i] = t.cache.usage(account, func() AccountUsage { return t.fetchGrokUsage(account) })
-			case auth.Meta:
-				results[i] = t.fetchMetaUsage(account)
-			default:
-				results[i] = t.cache.usage(account, func() AccountUsage { return t.fetchCodexUsage(account, generation) })
-			}
-		}(i, account)
-	}
-
 	go func() {
-		wg.Wait()
+		results := t.fetch(enabled)
 		t.mu.Lock()
 		if generation != t.generation {
 			t.mu.Unlock()
 			return
 		}
-		t.accounts = sortAccountUsages(results)
+		t.accounts = results
 		t.refreshin = false
 		notify := t.onChange
 		t.mu.Unlock()
@@ -216,6 +181,50 @@ func (t *Tracker) Refresh(codexAccounts, claudeAccounts, grokAccounts, metaAccou
 			notify()
 		}
 	}()
+}
+
+// eligibleAccounts keeps the accounts usage is read for. Disabled and expired
+// accounts are skipped; Meta ignores key expiry, since a stale card still
+// shows its "as of" time.
+func eligibleAccounts(codexAccounts, claudeAccounts, grokAccounts, metaAccounts []auth.Account) []auth.Account {
+	var enabled []auth.Account
+	for _, a := range append(append([]auth.Account(nil), codexAccounts...), claudeAccounts...) {
+		if !a.Disabled && !a.IsExpired() {
+			enabled = append(enabled, a)
+		}
+	}
+	enabled = append(enabled, activeGrokAccounts(grokAccounts)...)
+	for _, a := range metaAccounts {
+		if !a.Disabled {
+			enabled = append(enabled, a)
+		}
+	}
+	return enabled
+}
+
+// fetch reads usage for already-filtered accounts concurrently and returns
+// the sorted results. Shared by Refresh and the /droidproxy/usage endpoint.
+func (t *Tracker) fetch(accounts []auth.Account) []AccountUsage {
+	results := make([]AccountUsage, len(accounts))
+	var wg sync.WaitGroup
+	for i, account := range accounts {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			switch account.Type {
+			case auth.Claude:
+				results[i] = t.cache.usage(account, func() AccountUsage { return t.fetchClaudeUsage(account) })
+			case auth.Grok:
+				results[i] = t.cache.usage(account, func() AccountUsage { return t.fetchGrokUsage(account) })
+			case auth.Meta:
+				results[i] = t.fetchMetaUsage(account)
+			default:
+				results[i] = t.cache.usage(account, func() AccountUsage { return t.fetchCodexUsage(account) })
+			}
+		}()
+	}
+	wg.Wait()
+	return sortAccountUsages(results)
 }
 
 // UpdateMetaAccounts replaces only the Meta cards from the local
@@ -329,7 +338,7 @@ func doJSON(client *http.Client, request *http.Request) ([]byte, int, http.Heade
 
 // Codex.
 
-func (t *Tracker) fetchCodexUsage(account auth.Account, generation int) AccountUsage {
+func (t *Tracker) fetchCodexUsage(account auth.Account) AccountUsage {
 	authData, ok := authValues(account.FilePath)
 	if !ok {
 		return failedAccount(account, "Missing access token")
@@ -448,7 +457,7 @@ func (t *Tracker) fetchMetaUsage(account auth.Account) AccountUsage {
 
 // Claude.
 
-func (t *Tracker) fetchClaudeUsage(account auth.Account, generation int) AccountUsage {
+func (t *Tracker) fetchClaudeUsage(account auth.Account) AccountUsage {
 	authData, ok := authValues(account.FilePath)
 	if !ok {
 		return failedAccount(account, "Missing access token")
@@ -473,16 +482,16 @@ func (t *Tracker) fetchClaudeUsage(account auth.Account, generation int) Account
 		}
 		token = newToken
 	}
-	return t.executeClaudeUsageRequest(account, client, endpoint, token, generation)
+	return t.executeClaudeUsageRequest(account, client, endpoint, token)
 }
 
-func (t *Tracker) executeClaudeUsageRequest(account auth.Account, client *http.Client, endpoint, token string, generation int) AccountUsage {
+func (t *Tracker) executeClaudeUsageRequest(account auth.Account, client *http.Client, endpoint, token string) AccountUsage {
 	data, status, header, err := doJSON(client, makeClaudeUsageRequest(endpoint, token))
 	if err != nil {
 		return failedAccount(account, errText(err))
 	}
 	if status == 401 || status == 403 {
-		return t.retryClaudeUsageAfterRefresh(account, client, endpoint, generation)
+		return t.retryClaudeUsageAfterRefresh(account, client, endpoint)
 	}
 	if status < 200 || status >= 300 {
 		return failedResponse(account, fmt.Sprintf("Claude usage API returned %d", status), status, header)
@@ -494,7 +503,7 @@ func (t *Tracker) executeClaudeUsageRequest(account auth.Account, client *http.C
 	return successAccount(account, windows)
 }
 
-func (t *Tracker) retryClaudeUsageAfterRefresh(account auth.Account, client *http.Client, endpoint string, generation int) AccountUsage {
+func (t *Tracker) retryClaudeUsageAfterRefresh(account auth.Account, client *http.Client, endpoint string) AccountUsage {
 	if _, ok := authValues(account.FilePath); !ok {
 		return failedAccount(account, "Failed to read credentials for retry")
 	}

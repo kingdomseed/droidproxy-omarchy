@@ -10,6 +10,8 @@ const ui = {
   fastModeOpen: true,
   expandedProviders: {},
   sseOk: false,
+  // Usage gauge showing the copy checkmark: { key, until }.
+  copiedGauge: null,
 };
 
 function el(tag, attrs, ...children) {
@@ -235,6 +237,8 @@ function ringSVG(size, stroke, tracks) {
   return svg;
 }
 
+const COPY_HINT = "Click to copy a curl for this usage";
+
 function usageHelpText(w) {
   const usage =
     w.hasRemaining && w.remainingPercent !== undefined
@@ -275,7 +279,10 @@ function gauge(windows, providerId, iconFile) {
   const logo = el("div", { class: "gauge-logo" });
   logo.append(iconEl(iconFile, color, 22));
   g.append(logo);
-  const help = [usageHelpText(inner)].concat(outer ? [usageHelpText(outer)] : []).join("\n");
+  const help = [usageHelpText(inner)]
+    .concat(outer ? [usageHelpText(outer)] : [])
+    .concat([COPY_HINT])
+    .join("\n");
   g.addEventListener("mousemove", (e) => showGaugeTip(help, e.clientX, e.clientY));
   g.addEventListener("mouseleave", hideGaugeTip);
   return g;
@@ -291,13 +298,59 @@ function compactGauge(window, providerId, iconFile) {
   const logo = el("div", { class: "gauge-logo" });
   logo.append(iconEl(iconFile, color, 12));
   g.append(logo);
-  const help = usageHelpText(window);
+  const help = usageHelpText(window) + "\n" + COPY_HINT;
   g.addEventListener("mousemove", (e) => showGaugeTip(help, e.clientX, e.clientY));
   g.addEventListener("mouseleave", hideGaugeTip);
   row.append(g);
   row.append(el("span", { class: "gauge-email", text: window.title, title: help }));
   return row;
 }
+
+const COPY_CHECKMARK_MS = 1000;
+const COPY_TOAST_MS = 1600;
+let toastTimer = null;
+
+function showToast(message) {
+  const toast = document.getElementById("toast");
+  toast.textContent = message;
+  toast.classList.add("visible");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove("visible"), COPY_TOAST_MS);
+}
+
+function usageKey(a) {
+  return a.provider + ":" + a.id;
+}
+
+// Clicking a gauge copies a curl for that account's live usage
+// (GET /droidproxy/usage on the proxy port). Only a copy that landed is
+// confirmed; a repeat click restarts both timers.
+async function copyUsageCurl(a) {
+  const result = await call("usage.copyCurl", { provider: a.provider, accountId: a.id });
+  if (!result.ok) {
+    ui.copiedGauge = null;
+    render();
+    return;
+  }
+  const until = Date.now() + COPY_CHECKMARK_MS;
+  ui.copiedGauge = { key: usageKey(a), until };
+  render();
+  showToast(`Copied ${a.providerName || a.provider} usage curl`);
+  setTimeout(() => {
+    if (ui.copiedGauge && ui.copiedGauge.until === until) {
+      ui.copiedGauge = null;
+      render();
+    }
+  }, COPY_CHECKMARK_MS);
+}
+
+function copyable(target, gaugeNode, a) {
+  gaugeNode.classList.add("copyable");
+  if (ui.copiedGauge && ui.copiedGauge.key === usageKey(a)) gaugeNode.classList.add("copied");
+  target.addEventListener("click", () => copyUsageCurl(a));
+  return target;
+}
+
 function usageCard() {
   const usage = ui.state.usage;
   if (!usage || !usage.visible) return null;
@@ -341,11 +394,16 @@ function usageCard() {
         el("div", { class: "gauge-error", title: a.error }, el("span", { text: "⚠" }), el("span", { text: a.error }))
       );
     } else if ((a.windows || []).length > 2) {
+      // The whole stack copies one account's curl, so every ring confirms it.
       const stack = el("div", { class: "gauge-group" });
-      for (const w of a.windows) stack.append(compactGauge(w, a.provider, providerIcon(a.provider)));
+      for (const w of a.windows) {
+        const row = compactGauge(w, a.provider, providerIcon(a.provider));
+        stack.append(copyable(row, row.querySelector(".gauge"), a));
+      }
       group.append(stack);
     } else if ((a.windows || []).length > 0) {
-      group.append(gauge(a.windows, a.provider, providerIcon(a.provider)));
+      const g = gauge(a.windows, a.provider, providerIcon(a.provider));
+      group.append(copyable(g, g, a));
     }
     if (!a.loading && !a.error && a.updatedAt && a.provider === "meta") {
       group.append(el("div", { class: "gauge-email", text: "as of " + relTime(a.updatedAt) }));

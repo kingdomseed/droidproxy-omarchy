@@ -149,6 +149,8 @@ type UsageState struct {
 }
 
 type UsageAccount struct {
+	// ID is the account id (auth file name, or Meta account id).
+	ID           string        `json:"id"`
 	Provider     string        `json:"provider"`
 	ProviderName string        `json:"providerName"`
 	Email        string        `json:"email"`

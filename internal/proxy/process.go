@@ -44,6 +44,13 @@ func (p *Proxy) processRequest(data []byte, conn net.Conn) {
 	method, path, httpVersion := parts[0], parts[1], parts[2]
 	logx.Logf("[ThinkingProxy] Incoming request: %s %s", method, path)
 
+	if method == "GET" && p.UsageEndpoint != nil {
+		if status, body, ok := p.UsageEndpoint(path); ok {
+			sendJSON(conn, status, body)
+			return
+		}
+	}
+
 	var headers [][2]string
 	for _, line := range lines[1:] {
 		if line == "" {

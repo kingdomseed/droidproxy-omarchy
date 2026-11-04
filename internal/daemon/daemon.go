@@ -45,7 +45,11 @@ type proxyServer interface {
 }
 
 // proxyFactory builds the ThinkingProxy. A variable so tests can stub it.
-var proxyFactory func() proxyServer = func() proxyServer { return proxy.New() }
+var proxyFactory = func(d *Daemon) proxyServer {
+	p := proxy.New()
+	p.UsageEndpoint = d.serveUsageEndpoint
+	return p
+}
 
 // Timing constants ported from AppDelegate/SettingsView.
 const (
@@ -124,7 +128,7 @@ func (d *Daemon) run() error {
 	catalog.SetMetaKeyChecker(func() bool { return d.metaStore.HasUsableAPIKey() })
 
 	d.backend = backend.New()
-	d.proxy = proxyFactory()
+	d.proxy = proxyFactory(d)
 
 	d.usage = usage.NewTracker()
 	d.usage.SetOnChange(d.notifyStateChanged)
@@ -282,6 +286,20 @@ func (d *Daemon) refreshUsage() {
 	grokAccounts := d.authMgr.Accounts(auth.Grok)
 	metaAccounts := d.authMgr.Accounts(auth.Meta)
 	go d.usage.Refresh(codex, claudeAccounts, grokAccounts, metaAccounts)
+}
+
+// serveUsageEndpoint answers ThinkingProxy's GET /droidproxy/usage.
+func (d *Daemon) serveUsageEndpoint(requestPath string) (int, []byte, bool) {
+	filter, ok := usage.ParseEndpointFilter(requestPath)
+	if !ok {
+		return 0, nil, false
+	}
+	accounts := map[auth.ServiceType][]auth.Account{}
+	for _, st := range []auth.ServiceType{auth.Codex, auth.Claude, auth.Grok, auth.Meta} {
+		accounts[st] = d.authMgr.Accounts(st)
+	}
+	status, body := d.usage.ServeEndpoint(filter, accounts, time.Now())
+	return status, body, true
 }
 
 func (d *Daemon) metaKeyRefreshLoop() {
