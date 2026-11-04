@@ -525,7 +525,7 @@ func (d *Daemon) startMetaLogin() {
 			d.mu.Unlock()
 			if err == nil {
 				d.postMessageEvent(authResultTitle,
-					"Meta Muse connected.\n\nMuse Spark 1.3 and Muse Spark 1.3 Contributor are now available. Re-apply Factory custom models to pick them up.",
+					"Meta Muse connected.\n\nMuse Wonder 1.0 and Muse Wonder 1.0 Contributor are now available. Re-apply Factory custom models to pick them up.",
 					control.LevelInfo)
 			} else {
 				d.postMessageEvent(authResultTitle, "Meta Muse authentication failed: "+err.Error(), control.LevelError)
@@ -712,8 +712,12 @@ func (d *Daemon) setSetting(key string, value json.RawMessage) control.CallResul
 		if err := setBoolPref(prefs.KeyGPT6AstraFastMode, value); err != nil {
 			return fail(err)
 		}
-	case "gpt6SolFastMode":
-		if err := setBoolPref(prefs.KeyGPT6SolFastMode, value); err != nil {
+	case "gpt61SolFastMode":
+		if err := setBoolPref(prefs.KeyGPT61SolFastMode, value); err != nil {
+			return fail(err)
+		}
+	case "gpt61TerraFastMode":
+		if err := setBoolPref(prefs.KeyGPT61TerraFastMode, value); err != nil {
 			return fail(err)
 		}
 	case "gpt6LunaFastMode":

@@ -44,9 +44,9 @@ droidproxy uninstall --purge  # also removes DroidProxy's settings
 ## Features
 
 - **One-click OAuth auth** -- Claude Code, Codex, and Antigravity login from Settings, with credential monitoring and automatic OAuth token refresh. Multiple accounts per provider, with per-account enable/disable.
-- **Grok and Meta Muse** -- Device-code sign-in for SuperGrok / X Premium+ (Grok 4.7 and Grok 4.7 Fast) and Meta Muse (Muse Spark 1.3, with Contributor mode).
-- **Every model, every reasoning level** -- Fable 5.1, Opus 5.5, Sonnet 4.6, GPT 6 Astra, GPT 6 Sol, GPT 6 Luna, Gemini 3.1 Pro, Gemini 3 Flash, and more — registered as Factory custom models with their full set of native reasoning levels. Pick the effort per session in Droid's model selector.
-- **Fast Mode** -- Optional `service_tier=priority` for GPT 6 Astra, GPT 6 Sol, and GPT 6 Luna. Grok 4.7 Fast is a separate SuperGrok model (`grok-4.7-build-fast`).
+- **Grok and Meta Muse** -- Device-code sign-in for SuperGrok / X Premium+ (Grok 4.7 and Grok 4.7 Fast) and Meta Muse (Muse Wonder 1.0 and Muse Wonder Full 1.0, with Contributor mode).
+- **Every model, every reasoning level** -- Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 5.5, GPT 6 Astra, GPT 6.1 Sol, GPT 6.1 Terra, GPT 6 Luna, Gemini 4 Argon, Gemini 3.8 Flash, and more — registered as Factory custom models with their full set of native reasoning levels. Pick the effort per session in Droid's model selector.
+- **Fast Mode** -- Optional `service_tier=priority` for GPT 6 Astra, GPT 6.1 Sol, GPT 6.1 Terra, and GPT 6 Luna. Grok 4.7 Fast is a separate SuperGrok model (`grok-4.7-build-fast`).
 - **Account failover** -- Round-robin by default, or sequential failover that rides one account until its quota runs out.
 - **Usage tracking** -- Claude, Codex, Grok, and Meta Muse OAuth quota windows (5-hour + weekly) as ring gauges in the Settings web app, just like the Mac app.
 - **Grok Imagine and GPT Image** -- OpenAI-compatible image generation through your Grok or Codex subscription. See [Image generation skills](#image-generation-skills).

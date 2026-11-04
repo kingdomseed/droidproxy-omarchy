@@ -39,28 +39,34 @@ func TestInspectRequestJSONFields(t *testing.T) {
 }
 
 func TestProcessOpenAIFastModeInjectsServiceTier(t *testing.T) {
-	isolateHome(t)
-	_ = prefs.Shared().Set(prefs.KeyGPT6SolFastMode, true)
-
-	body := `{"model":"gpt-6-sol","input":[]}`
-	fields, ok := inspectRequestJSONFields(body)
-	if !ok {
-		t.Fatal("fields")
-	}
-	got, ok := processOpenAIFastMode(body, "/v1/responses", fields, true)
-	if !ok {
-		t.Fatal("expected injection")
-	}
-	if !strings.Contains(got, `"model":"gpt-6-sol","service_tier":"priority"`) {
-		t.Fatalf("injection position wrong: %s", got)
+	for model, key := range map[string]string{
+		"gpt-6.1-sol":   prefs.KeyGPT61SolFastMode,
+		"gpt-6.1-terra": prefs.KeyGPT61TerraFastMode,
+	} {
+		isolateHome(t)
+		body := `{"model":"` + model + `","input":[]}`
+		fields, ok := inspectRequestJSONFields(body)
+		if !ok {
+			t.Fatal("fields")
+		}
+		if _, ok := processOpenAIFastMode(body, "/v1/responses", fields, true); ok {
+			t.Fatalf("%s: injected with fast mode off", model)
+		}
+		_ = prefs.Shared().Set(key, true)
+		got, ok := processOpenAIFastMode(body, "/v1/responses", fields, true)
+		if !ok {
+			t.Fatalf("%s: expected injection", model)
+		}
+		if !strings.Contains(got, `"model":"`+model+`","service_tier":"priority"`) {
+			t.Fatalf("%s: injection position wrong: %s", model, got)
+		}
 	}
 }
-
 func TestProcessOpenAIFastModeSkipsWhenAlreadySet(t *testing.T) {
 	isolateHome(t)
-	_ = prefs.Shared().Set(prefs.KeyGPT6SolFastMode, true)
+	_ = prefs.Shared().Set(prefs.KeyGPT61SolFastMode, true)
 
-	body := `{"model":"gpt-6-sol","service_tier":"default"}`
+	body := `{"model":"gpt-6.1-sol","service_tier":"default"}`
 	fields, ok := inspectRequestJSONFields(body)
 	if !ok {
 		t.Fatal("fields")
@@ -71,20 +77,26 @@ func TestProcessOpenAIFastModeSkipsWhenAlreadySet(t *testing.T) {
 }
 
 func TestRewriteAntigravityModelAlias(t *testing.T) {
-	body := `{"model":"ag-c46s-thinking","messages":[]}`
-	fields, ok := inspectRequestJSONFields(body)
-	if !ok {
-		t.Fatal("fields")
-	}
-	got, ok := rewriteAntigravityModelAlias(body, fields, true)
-	if !ok {
-		t.Fatal("expected rewrite")
-	}
-	if !strings.Contains(got, `"model":"claude-sonnet-4-6"`) {
-		t.Fatalf("got %s", got)
+	for alias, backend := range map[string]string{
+		"ag-c55s-high":     "claude-sonnet-5-5-high",
+		"ag-c55o-high":     "claude-opus-5-5-high",
+		"ag-c46s-thinking": "claude-sonnet-4-6",
+		"ag-c46o-thinking": "claude-opus-4-6-thinking",
+	} {
+		body := `{"model":"` + alias + `","messages":[]}`
+		fields, ok := inspectRequestJSONFields(body)
+		if !ok {
+			t.Fatal("fields")
+		}
+		got, ok := rewriteAntigravityModelAlias(body, fields, true)
+		if !ok {
+			t.Fatalf("%s: expected rewrite", alias)
+		}
+		if !strings.Contains(got, `"model":"`+backend+`"`) {
+			t.Fatalf("%s: got %s", alias, got)
+		}
 	}
 }
-
 func TestOAuthGeminiPathRewrite(t *testing.T) {
 	fields := requestJSONFields{model: "gemini-3.1-pro-preview", hasModel: true}
 	if !isOAuthCodeAssistGeminiModel(fields, true) {
@@ -99,13 +111,13 @@ func TestOAuthGeminiPathRewrite(t *testing.T) {
 }
 
 func TestReasoningSummaryLog(t *testing.T) {
-	body := `{"model":"gpt-6-sol","reasoning":{"effort":"high"},"messages":[]}`
+	body := `{"model":"gpt-6.1-sol","reasoning":{"effort":"high"},"messages":[]}`
 	fields, ok := inspectRequestJSONFields(body)
 	if !ok {
 		t.Fatal("fields")
 	}
 	summary := reasoningSummaryLog(body, fields)
-	if !strings.Contains(summary, "model=gpt-6-sol") || !strings.Contains(summary, "reasoning=") {
+	if !strings.Contains(summary, "model=gpt-6.1-sol") || !strings.Contains(summary, "reasoning=") {
 		t.Fatalf("summary=%q", summary)
 	}
 }
@@ -259,7 +271,7 @@ func TestProxyMetaResponsesTLSForward(t *testing.T) {
 	}
 	t.Cleanup(p.Stop)
 
-	body := `{"model":"muse-spark-1.3","input":[]}`
+	body := `{"model":"muse-wonder-1.0","input":[]}`
 	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/v1/responses", p.Port), strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)

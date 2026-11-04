@@ -624,7 +624,8 @@ function deviceBox(kind) {
 
 const FAST_MODES = [
   { key: "gpt6AstraFastMode", title: "GPT 6 Astra" },
-  { key: "gpt6SolFastMode", title: "GPT 6 Sol" },
+  { key: "gpt61SolFastMode", title: "GPT 6.1 Sol" },
+  { key: "gpt61TerraFastMode", title: "GPT 6.1 Terra" },
   { key: "gpt6LunaFastMode", title: "GPT 6 Luna" },
 ];
 
@@ -703,8 +704,8 @@ function providerSection(p) {
         "div",
         { class: "fast-row" },
         el("span", {
-          text: "Muse Spark · Contributor mode",
-          title: "Applies Muse Spark 1.3 Contributor instead of Muse Spark 1.3 when Factory custom models are applied. Only one is ever active.",
+          text: "Muse Wonder · Contributor mode",
+          title: "Applies the contributor variant of each Muse Wonder model instead of the base model when you apply Factory custom models. Only one variant per model is active at a time.",
         }),
         toggle(setting("metaContributorMode", false), null, (v) => setSetting("metaContributorMode", v))
       )

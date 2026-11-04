@@ -54,7 +54,8 @@ type Settings struct {
 	OLEDTheme                 bool    `json:"oledTheme"`
 	BackgroundOpacity         float64 `json:"backgroundOpacity"`
 	GPT6AstraFastMode         bool    `json:"gpt6AstraFastMode"`
-	GPT6SolFastMode           bool    `json:"gpt6SolFastMode"`
+	GPT61SolFastMode          bool    `json:"gpt61SolFastMode"`
+	GPT61TerraFastMode        bool    `json:"gpt61TerraFastMode"`
 	GPT6LunaFastMode          bool    `json:"gpt6LunaFastMode"`
 	MetaContributorMode       bool    `json:"metaContributorMode"`
 	AutoCheckUpdates          bool    `json:"autoCheckUpdates"`

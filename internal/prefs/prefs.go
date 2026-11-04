@@ -18,7 +18,8 @@ import (
 // Keys match the macOS UserDefaults keys so settings read the same everywhere.
 const (
 	KeyGPT6AstraFastMode         = "gpt6AstraFastMode"
-	KeyGPT6SolFastMode           = "gpt6SolFastMode"
+	KeyGPT61SolFastMode          = "gpt61SolFastMode"
+	KeyGPT61TerraFastMode        = "gpt61TerraFastMode"
 	KeyGPT6LunaFastMode          = "gpt6LunaFastMode"
 	KeyMetaContributorMode       = "metaContributorMode"
 	KeyAllowRemote               = "allowRemote"
@@ -192,7 +193,8 @@ func (s *Store) StringSlice(key string) []string {
 // ---- AppPreferences equivalents -------------------------------------------
 
 func GPT6AstraFastMode() bool   { return Shared().Bool(KeyGPT6AstraFastMode, false) }
-func GPT6SolFastMode() bool     { return Shared().Bool(KeyGPT6SolFastMode, false) }
+func GPT61SolFastMode() bool    { return Shared().Bool(KeyGPT61SolFastMode, false) }
+func GPT61TerraFastMode() bool  { return Shared().Bool(KeyGPT61TerraFastMode, false) }
 func GPT6LunaFastMode() bool    { return Shared().Bool(KeyGPT6LunaFastMode, false) }
 func MetaContributorMode() bool { return Shared().Bool(KeyMetaContributorMode, false) }
 func AllowRemote() bool         { return Shared().Bool(KeyAllowRemote, false) }

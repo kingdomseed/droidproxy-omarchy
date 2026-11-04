@@ -95,7 +95,8 @@ All keys are always present. Strings are never `null`; use `""`.
     "oledTheme": false,
     "backgroundOpacity": 0.55,
     "gpt6AstraFastMode": false,
-    "gpt6SolFastMode": false,
+    "gpt61SolFastMode": false,
+    "gpt61TerraFastMode": false,
     "gpt6LunaFastMode": false,
     "metaContributorMode": false,
     "autoCheckUpdates": true,
@@ -213,7 +214,7 @@ All keys are always present. Strings are never `null`; use `""`.
 | `sequentialAccountFailover` | bool | `setSequentialAccountFailover` (regenerate config). |
 | `beta` | bool | Stored; beta-gated rows (bind address). |
 | `oledTheme`, `backgroundOpacity` | bool/number | Stored; legacy QML panel appearance (the web UI is always OLED black). |
-| `gpt6AstraFastMode`, `gpt6SolFastMode`, `gpt6LunaFastMode` | bool | ThinkingProxy fast mode. |
+| `gpt6AstraFastMode`, `gpt61SolFastMode`, `gpt61TerraFastMode`, `gpt6LunaFastMode` | bool | ThinkingProxy fast mode. |
 | `metaContributorMode` | bool | Stored; affects Factory model apply. |
 | `autoCheckUpdates`, `autoInstallUpdates` | bool | Updater behavior. |
 
