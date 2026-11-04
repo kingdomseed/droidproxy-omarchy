@@ -57,6 +57,9 @@ type Tracker struct {
 	// metaSnapshots reads last-observed Meta usage. Defaults to the shared
 	// store; tests inject an in-memory stub.
 	metaSnapshots func(accountID string) *meta.UsageSnapshot
+	// probeMeta refreshes a stale Meta snapshot before it is read. Defaults to
+	// a live api.meta.ai probe; tests inject a stub.
+	probeMeta func(accountID string)
 
 	cache *usageCache
 }
@@ -71,6 +74,7 @@ func NewTracker() *Tracker {
 		grokUsageURL:   grokUsageEndpoint,
 		grokToken:      grok.AccessToken,
 		metaSnapshots:  func(accountID string) *meta.UsageSnapshot { return meta.SharedUsageStore().Snapshot(accountID) },
+		probeMeta:      func(accountID string) { meta.NewUsageProber().Refresh(accountID, false) },
 		cache: newUsageCache(filepath.Join(paths.DataDir(), "usage-cache.json"), time.Now, func() time.Duration {
 			return time.Duration(rand.Int64N(int64(30 * time.Second)))
 		}),
@@ -107,6 +111,13 @@ func (t *Tracker) SetGrokToken(fn func() (string, *grok.AuthError)) {
 func (t *Tracker) SetMetaSnapshots(fn func(accountID string) *meta.UsageSnapshot) {
 	t.mu.Lock()
 	t.metaSnapshots = fn
+	t.mu.Unlock()
+}
+
+// SetMetaProbe injects the stale-snapshot Meta probe (tests only).
+func (t *Tracker) SetMetaProbe(fn func(accountID string)) {
+	t.mu.Lock()
+	t.probeMeta = fn
 	t.mu.Unlock()
 }
 
@@ -203,7 +214,7 @@ func eligibleAccounts(codexAccounts, claudeAccounts, grokAccounts, metaAccounts 
 }
 
 // fetch reads usage for already-filtered accounts concurrently and returns
-// the sorted results. Shared by Refresh and the /droidproxy/usage endpoint.
+// the sorted results.
 func (t *Tracker) fetch(accounts []auth.Account) []AccountUsage {
 	results := make([]AccountUsage, len(accounts))
 	var wg sync.WaitGroup
@@ -439,7 +450,10 @@ func (t *Tracker) fetchGrokUsage(account auth.Account) AccountUsage {
 // or expired key falls back to the stored snapshot, so a stale card still
 // shows its "as of" time.
 func (t *Tracker) fetchMetaUsage(account auth.Account) AccountUsage {
-	meta.NewUsageProber().Refresh(account.ID, false)
+	t.mu.Lock()
+	probe := t.probeMeta
+	t.mu.Unlock()
+	probe(account.ID)
 	return t.storedMetaUsage(account)
 }
 

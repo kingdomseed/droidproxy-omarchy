@@ -267,9 +267,12 @@ binds wherever the proxy binds.
 }
 ```
 
-No matching enabled account answers 404 with `error` and the `available`
-accounts. Reads share the per-account polling budget with the settings gauges
-(Claude at most every 5 minutes, others every 15 seconds, longer after a 429),
+Only accounts of switched-on providers are read, skipping disabled and
+expired ones (a Meta account with an expired key still answers from its
+stored snapshot). No matching enabled account answers 404 with `error` and
+the `available` accounts. Reads share the per-account polling budget with
+the settings gauges (Claude at most every 5 minutes, others every 15 seconds,
+longer after a 429),
 so polling in a loop never hits the upstream usage APIs harder than that.
 Meta has no usage endpoint: when an account's stored snapshot is over 60
 seconds old, the read sends a 16-token streamed `/v1/responses` request with

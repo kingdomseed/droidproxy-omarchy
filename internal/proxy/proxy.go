@@ -53,7 +53,7 @@ type Proxy struct {
 	// the shared usage store; tests inject a stub.
 	MetaUsageRecorder func(accountID string, snapshot meta.UsageSnapshot)
 	// UsageEndpoint answers GET /droidproxy/usage locally; ok is false for
-	// every other path. The daemon wires it to the usage tracker.
+	// every other path.
 	UsageEndpoint func(requestPath string) (status int, body []byte, ok bool)
 
 	mu       sync.Mutex

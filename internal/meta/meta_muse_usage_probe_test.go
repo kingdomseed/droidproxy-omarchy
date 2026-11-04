@@ -9,15 +9,15 @@ import (
 	"time"
 )
 
-func TestIsUsageFresh(t *testing.T) {
+func TestUsageFreshness(t *testing.T) {
 	now := time.Unix(1_800_000_000, 0)
-	if IsUsageFresh(nil, now) {
+	if isUsageFresh(nil, now) {
 		t.Error("nil snapshot must be stale")
 	}
-	if !IsUsageFresh(&UsageSnapshot{ObservedAt: now.Add(-59 * time.Second)}, now) {
+	if !isUsageFresh(&UsageSnapshot{ObservedAt: now.Add(-59 * time.Second)}, now) {
 		t.Error("59s-old snapshot must be fresh")
 	}
-	if IsUsageFresh(&UsageSnapshot{ObservedAt: now.Add(-60 * time.Second)}, now) {
+	if isUsageFresh(&UsageSnapshot{ObservedAt: now.Add(-60 * time.Second)}, now) {
 		t.Error("60s-old snapshot must be stale")
 	}
 }

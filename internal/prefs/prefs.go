@@ -258,7 +258,7 @@ const DefaultWindowPrimerMinutes = 7 * 60
 // Window primer keys are per provider ("claude", "codex", "meta").
 func WindowPrimerEnabledKey(provider string) string   { return "windowPrimerEnabled." + provider }
 func WindowPrimerMinutesKey(provider string) string   { return "windowPrimerMinutes." + provider }
-func WindowPrimerLastFiredKey(provider string) string { return "windowPrimerLastFired." + provider }
+func windowPrimerLastFiredKey(provider string) string { return "windowPrimerLastFired." + provider }
 
 // WindowPrimerEnabled reports whether "Auto-start daily" is on for provider.
 func WindowPrimerEnabled(provider string) bool {
@@ -278,7 +278,7 @@ func WindowPrimerMinutes(provider string) int {
 // Stored as unix seconds, like lastUpdateCheck.
 func WindowPrimerLastFired(provider string) *time.Time {
 	var seconds int64
-	if !Shared().Get(WindowPrimerLastFiredKey(provider), &seconds) {
+	if !Shared().Get(windowPrimerLastFiredKey(provider), &seconds) {
 		return nil
 	}
 	t := time.Unix(seconds, 0)
@@ -287,5 +287,5 @@ func WindowPrimerLastFired(provider string) *time.Time {
 
 // SetWindowPrimerLastFired records when provider's window was started.
 func SetWindowPrimerLastFired(provider string, t time.Time) error {
-	return Shared().Set(WindowPrimerLastFiredKey(provider), t.Unix())
+	return Shared().Set(windowPrimerLastFiredKey(provider), t.Unix())
 }

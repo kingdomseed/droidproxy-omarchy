@@ -53,7 +53,7 @@ func TestEndpointJSONReportsRemainingPercentAndSecondsUntilReset(t *testing.T) {
 			Windows  []map[string]any `json:"windows"`
 		} `json:"accounts"`
 	}
-	if err := json.Unmarshal(EndpointJSON([]AccountUsage{usage}, now), &root); err != nil {
+	if err := json.Unmarshal(endpointJSON([]AccountUsage{usage}, now), &root); err != nil {
 		t.Fatal(err)
 	}
 	account := root.Accounts[0]

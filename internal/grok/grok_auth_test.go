@@ -331,6 +331,7 @@ func assertHeaders(t *testing.T, headers [][2]string, names, values []string) {
 		}
 	}
 }
+
 func TestFormBodyPercentEncodesPlusAsFormURLEncoded(t *testing.T) {
 	body := string(FormBody(map[string]string{
 		"refresh_token": "abc+def/ghi=",

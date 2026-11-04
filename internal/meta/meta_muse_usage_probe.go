@@ -10,19 +10,19 @@ import (
 	"github.com/nikships/droidproxy-omarchy/internal/logx"
 )
 
-// UsageProbeInterval is how old a stored snapshot must be before the probe
+// usageProbeInterval is how old a stored snapshot must be before the probe
 // spends quota on a fresh one. Real traffic or an earlier probe this recent
 // already counts as fresh, which also keeps polling agents from burning quota
 // on probes.
-const UsageProbeInterval = 60 * time.Second
+const usageProbeInterval = 60 * time.Second
 
 const usageProbeBody = `{"model":"muse-wonder-1.0","input":"hi","max_output_tokens":16,"stream":true}`
 
 var usageProbeClient = &http.Client{Timeout: 20 * time.Second}
 
-// IsUsageFresh reports whether snapshot was observed within UsageProbeInterval.
-func IsUsageFresh(snapshot *UsageSnapshot, now time.Time) bool {
-	return snapshot != nil && now.Sub(snapshot.ObservedAt) < UsageProbeInterval
+// isUsageFresh reports whether snapshot was observed within usageProbeInterval.
+func isUsageFresh(snapshot *UsageSnapshot, now time.Time) bool {
+	return snapshot != nil && now.Sub(snapshot.ObservedAt) < usageProbeInterval
 }
 
 // UsageProber refreshes stale Meta usage (macOS MetaMuseUsageProbe). Meta has
@@ -49,12 +49,12 @@ func NewUsageProber() *UsageProber {
 }
 
 // Refresh records a fresh snapshot for the account when its stored one is
-// older than UsageProbeInterval (or always, with force). Any failure keeps
+// older than usageProbeInterval (or always, with force). Any failure keeps
 // the stored snapshot, so the card falls back to its "as of" value. It
 // reports whether a request completed and recorded a snapshot.
 func (p *UsageProber) Refresh(accountID string, force bool) bool {
 	now := time.Now()
-	if !force && IsUsageFresh(p.Usage.Snapshot(accountID), now) {
+	if !force && isUsageFresh(p.Usage.Snapshot(accountID), now) {
 		return false
 	}
 	var apiKey string

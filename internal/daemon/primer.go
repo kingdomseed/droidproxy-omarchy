@@ -136,9 +136,8 @@ func (d *Daemon) sendWindowPrimers(st auth.ServiceType) int {
 	sent := 0
 	if st == auth.Meta {
 		prober := meta.NewUsageProber()
-		now := time.Now()
 		for _, a := range d.metaStore.Accounts() {
-			if !a.Disabled && !meta.APIKeyExpiredAt(a.Credentials.APIKeyExpiresAt, now) && prober.Refresh(a.ID, true) {
+			if prober.Refresh(a.ID, true) {
 				sent++
 			}
 		}

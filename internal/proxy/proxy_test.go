@@ -62,6 +62,7 @@ func TestProcessOpenAIFastModeInjectsServiceTier(t *testing.T) {
 		}
 	}
 }
+
 func TestProcessOpenAIFastModeSkipsWhenAlreadySet(t *testing.T) {
 	isolateHome(t)
 	_ = prefs.Shared().Set(prefs.KeyGPT61SolFastMode, true)
@@ -98,6 +99,7 @@ func TestRewriteAntigravityModelAlias(t *testing.T) {
 		}
 	}
 }
+
 func TestOAuthGeminiPathRewrite(t *testing.T) {
 	fields := requestJSONFields{model: "gemini-3.1-pro-preview", hasModel: true}
 	if !isOAuthCodeAssistGeminiModel(fields, true) {

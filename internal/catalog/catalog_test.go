@@ -65,6 +65,7 @@ func TestMuseVariantsApplyMaxReasoning(t *testing.T) {
 			[]string{"minimal", "low", "medium", "high", "xhigh", "max"})
 	}
 }
+
 func TestFable51ExposesFullEffortLevels(t *testing.T) {
 	fable := mustEntry(t, "custom:droidproxy:fable-5-1")
 
@@ -524,6 +525,7 @@ func TestMetaContributorModeExclusivity(t *testing.T) {
 		t.Errorf("contributor muse models = %v", got)
 	}
 }
+
 func mustEntry(t *testing.T, id string) map[string]any {
 	t.Helper()
 	entry := settingsEntry(t, id)

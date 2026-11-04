@@ -39,6 +39,9 @@ type fakeDesktop struct {
 	runs      []string
 	detached  []string
 	clipboard []string
+	// clipboardFails makes every wl-copy run fail, like a session without
+	// a reachable clipboard.
+	clipboardFails bool
 }
 
 func (f *fakeDesktop) Run(_ context.Context, name string, args ...string) (string, error) {
@@ -68,6 +71,9 @@ func (f *fakeDesktop) Run(_ context.Context, name string, args ...string) (strin
 		return "", nil
 	}
 	if name == "wl-copy" && len(args) >= 1 {
+		if f.clipboardFails {
+			return "", errors.New("wl-copy: no display")
+		}
 		f.clipboard = append(f.clipboard, args[0])
 	}
 	return "", nil
@@ -344,6 +350,16 @@ func TestDaemonSettingsAndDesktopActions(t *testing.T) {
 	if texts := desk.clipboardTexts(); len(texts) == 0 || texts[len(texts)-1] != wantCurl {
 		t.Errorf("clipboard = %v, want %s", texts, wantCurl)
 	}
+	// The web UI shows its checkmark and toast only for an ok result.
+	desk.mu.Lock()
+	desk.clipboardFails = true
+	desk.mu.Unlock()
+	if res := callOK(t, client, "usage.copyCurl", map[string]any{"provider": "codex", "accountId": "codex-a@b.com.json"}); res.OK || res.Error == "" {
+		t.Errorf("usage.copyCurl with a failing clipboard = %+v", res)
+	}
+	desk.mu.Lock()
+	desk.clipboardFails = false
+	desk.mu.Unlock()
 
 	if res := callOK(t, client, "open.url", map[string]any{"url": "https://github.com/router-for-me/CLIProxyAPI"}); !res.OK {
 		t.Fatalf("open.url = %+v", res)

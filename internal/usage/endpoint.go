@@ -102,7 +102,7 @@ func (t *Tracker) ServeEndpoint(filter EndpointFilter, accounts map[auth.Service
 		}
 		return 404, encodeEndpointJSON(map[string]any{"error": "No matching enabled OAuth account", "available": available})
 	}
-	return 200, EndpointJSON(t.fetch(eligible), now)
+	return 200, endpointJSON(t.fetch(eligible), now)
 }
 
 func accountMatches(a auth.Account, wanted string) bool {
@@ -111,9 +111,9 @@ func accountMatches(a auth.Account, wanted string) bool {
 		strings.ToLower(a.DisplayName()) == needle
 }
 
-// EndpointJSON renders usages with each window's remaining percent and the
+// endpointJSON renders usages with each window's remaining percent and the
 // seconds until it resets.
-func EndpointJSON(usages []AccountUsage, now time.Time) []byte {
+func endpointJSON(usages []AccountUsage, now time.Time) []byte {
 	iso := func(t *time.Time) any {
 		if t == nil {
 			return nil
