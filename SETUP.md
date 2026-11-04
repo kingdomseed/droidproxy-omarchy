@@ -71,13 +71,13 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
       "provider": "anthropic"
     },
     {
-      "model": "claude-sonnet-4-6",
-      "id": "custom:droidproxy:sonnet-4-6",
+      "model": "claude-sonnet-5-5",
+      "id": "custom:droidproxy:sonnet-5-5",
       "index": 2,
       "baseUrl": "http://localhost:8317",
       "apiKey": "dummy-not-used",
-      "displayName": "DroidProxy: Sonnet 4.6",
-      "maxOutputTokens": 64000,
+      "displayName": "DroidProxy: Sonnet 5.5",
+      "maxOutputTokens": 128000,
       "noImageSupport": false,
       "provider": "anthropic"
     },
@@ -115,26 +115,26 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
       "provider": "openai"
     },
     {
-      "model": "gemini-3.1-pro-preview",
-      "id": "custom:droidproxy:gemini-3.1-pro",
+      "model": "gemini-4-argon-high",
+      "id": "custom:droidproxy:gemini-4-argon-high",
       "index": 6,
-      "baseUrl": "http://localhost:8317",
+      "baseUrl": "http://localhost:8317/v1",
       "apiKey": "dummy-not-used",
-      "displayName": "DroidProxy: Gemini 3.1 Pro",
+      "displayName": "DroidProxy: Antigravity: Gemini 4 Argon",
       "maxOutputTokens": 65536,
       "noImageSupport": false,
-      "provider": "google"
+      "provider": "openai"
     },
     {
-      "model": "gemini-3-flash-preview",
-      "id": "custom:droidproxy:gemini-3-flash",
+      "model": "gemini-3.8-flash-high",
+      "id": "custom:droidproxy:gemini-3.8-flash-high",
       "index": 7,
-      "baseUrl": "http://localhost:8317",
+      "baseUrl": "http://localhost:8317/v1",
       "apiKey": "dummy-not-used",
-      "displayName": "DroidProxy: Gemini 3 Flash",
+      "displayName": "DroidProxy: Antigravity: Gemini 3.8 Flash (High)",
       "maxOutputTokens": 65536,
       "noImageSupport": false,
-      "provider": "google"
+      "provider": "openai"
     },
     {
       "model": "kimi-k3",
@@ -154,7 +154,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
 ]
 ```
 
-Use the standard Claude, Codex, Gemini, and Kimi model aliases in the `model` field. Claude and Gemini entries use `http://localhost:8317` (with `provider: "anthropic"` and `provider: "google"` respectively); GPT/Codex and Kimi entries use `provider: "openai"` with `http://localhost:8317/v1`. Reasoning effort is chosen per session from Droid CLI's model selector. DroidProxy preserves that selection, and CLIProxyAPI translates it to the provider-native request format.
+Use the standard Claude, Codex, Antigravity, and Kimi model aliases in the `model` field. Claude entries use `http://localhost:8317` with `provider: "anthropic"`; GPT/Codex, Antigravity, and Kimi entries use `provider: "openai"` with `http://localhost:8317/v1`. Reasoning effort is chosen per session from Droid CLI's model selector. DroidProxy preserves that selection, and CLIProxyAPI translates it to the provider-native request format.
 
 ## 3. Choose Reasoning Effort
 
@@ -162,10 +162,10 @@ Reasoning effort is selected per session in Droid CLI's model picker. DroidProxy
 
 - Fable 5.1: `low`, `medium`, `high`, `xhigh`, or `max`
 - Opus 5.5: `low`, `medium`, `high`, `xhigh`, or `max`
-- Sonnet 4.6: `low`, `medium`, `high`, or `max`
+- Sonnet 5.5, Haiku 5.5: `low`, `medium`, `high`, `xhigh`, or `max`
 - GPT 6 Astra, GPT 6.1 Sol, GPT 6.1 Terra, GPT 6 Luna: `low`, `medium`, `high`, `xhigh`, or `max`
-- Gemini 3.1 Pro: `low`, `medium`, or `high`
-- Gemini 3 Flash: `minimal`, `low`, `medium`, or `high`
+- Gemini 4 Argon (Antigravity): `low`, `medium`, or `high`
+- Gemini 3.8 Flash (Antigravity): `high`
 - Kimi K3: `max` (the only currently supported effort)
 - Kimi K2.6: `high`
 

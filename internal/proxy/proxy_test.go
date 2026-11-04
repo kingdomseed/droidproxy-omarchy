@@ -77,6 +77,7 @@ func TestProcessOpenAIFastModeSkipsWhenAlreadySet(t *testing.T) {
 }
 
 func TestRewriteAntigravityModelAlias(t *testing.T) {
+	isolateHome(t)
 	for alias, backend := range map[string]string{
 		"ag-c55s-high":     "claude-sonnet-5-5-high",
 		"ag-c55o-high":     "claude-opus-5-5-high",

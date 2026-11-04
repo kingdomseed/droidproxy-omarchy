@@ -297,6 +297,7 @@ func (d *Daemon) setProviderEnabled(provider string, enabled bool) control.CallR
 		}
 	}
 	d.invalidateFactory()
+	d.refreshUsageIfAccountsChanged()
 	d.notifyStateChanged()
 	return control.OK("")
 }
