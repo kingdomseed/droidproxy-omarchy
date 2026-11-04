@@ -116,14 +116,6 @@ func (p *Proxy) processRequest(data []byte, conn net.Conn) {
 			modifiedBody = result
 			fields, hasFields = inspectRequestJSONFields(modifiedBody)
 		}
-		if hasFields && fields.hasModel && isClaudeModel(fields.model) {
-			sanitizedBody := claude.SanitizeThinkingBlocks(modifiedBody)
-			if sanitizedBody != modifiedBody {
-				logx.Debugf("SANITIZED CLAUDE THINKING BLOCKS: stripped stale assistant thinking before forwarding")
-				modifiedBody = sanitizedBody
-				fields, hasFields = inspectRequestJSONFields(modifiedBody)
-			}
-		}
 		if summary := reasoningSummaryLog(modifiedBody, fields); summary != "" {
 			logx.Debugf("REQUEST REASONING: %s", summary)
 		}
