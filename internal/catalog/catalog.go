@@ -315,9 +315,9 @@ func Definitions() []ModelDefinition {
 		},
 
 		// Grok OAuth (SuperGrok / X Premium+) via the Responses API;
-		// ThinkingProxy attaches the bearer. grok-4.7 goes to api.x.ai. The
-		// fast variant is the same model on faster infrastructure (2x price)
-		// and is served only by cli-chat-proxy. Context window from
+		// ThinkingProxy attaches the bearer. Both go to cli-chat-proxy (Grok
+		// Build billing); api.x.ai would bill as X API. The fast variant is the
+		// same model on faster infrastructure (2x price). Context window from
 		// docs.x.ai: grok-4.7=500k.
 		{
 			BaseModel: "grok-4.7", IDSlug: "grok-4.7", DisplayName: "Grok 4.7",
