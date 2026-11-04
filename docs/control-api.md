@@ -73,7 +73,7 @@ All keys are always present. Strings are never `null`; use `""`.
     "repoUrl": "https://github.com/nikships/droidproxy-omarchy",
     "issuesUrl": "https://github.com/nikships/droidproxy-omarchy/issues",
     "cliProxyApiUrl": "https://github.com/router-for-me/CLIProxyAPI",
-    "cliProxyApiVersion": "7.3.13"
+    "cliProxyApiVersion": "8.0.51"
   },
   "server": {
     "running": true,               // ThinkingProxy (:8317) and CLIProxyAPI (:8318) both up
