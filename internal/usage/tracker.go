@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"github.com/nikships/droidproxy-omarchy/internal/grok"
 	"github.com/nikships/droidproxy-omarchy/internal/logx"
 	"github.com/nikships/droidproxy-omarchy/internal/meta"
+	"github.com/nikships/droidproxy-omarchy/internal/paths"
 )
 
 const (
@@ -55,6 +57,8 @@ type Tracker struct {
 	// metaSnapshots reads last-observed Meta usage. Defaults to the shared
 	// store; tests inject an in-memory stub.
 	metaSnapshots func(accountID string) *meta.UsageSnapshot
+
+	cache *usageCache
 }
 
 // NewTracker creates a tracker with the default HTTP client and endpoints.
@@ -67,6 +71,9 @@ func NewTracker() *Tracker {
 		grokUsageURL:   grokUsageEndpoint,
 		grokToken:      grok.AccessToken,
 		metaSnapshots:  func(accountID string) *meta.UsageSnapshot { return meta.SharedUsageStore().Snapshot(accountID) },
+		cache: newUsageCache(filepath.Join(paths.DataDir(), "usage-cache.json"), time.Now, func() time.Duration {
+			return time.Duration(rand.Int64N(int64(30 * time.Second)))
+		}),
 	}
 }
 
@@ -183,13 +190,13 @@ func (t *Tracker) Refresh(codexAccounts, claudeAccounts, grokAccounts, metaAccou
 			defer wg.Done()
 			switch account.Type {
 			case auth.Claude:
-				results[i] = t.fetchClaudeUsage(account, generation)
+				results[i] = t.cache.usage(account, func() AccountUsage { return t.fetchClaudeUsage(account, generation) })
 			case auth.Grok:
-				results[i] = t.fetchGrokUsage(account)
+				results[i] = t.cache.usage(account, func() AccountUsage { return t.fetchGrokUsage(account) })
 			case auth.Meta:
 				results[i] = t.fetchMetaUsage(account)
 			default:
-				results[i] = t.fetchCodexUsage(account, generation)
+				results[i] = t.cache.usage(account, func() AccountUsage { return t.fetchCodexUsage(account, generation) })
 			}
 		}(i, account)
 	}
@@ -307,17 +314,17 @@ func errText(err error) string {
 	return err.Error()
 }
 
-func doJSON(client *http.Client, request *http.Request) ([]byte, int, error) {
+func doJSON(client *http.Client, request *http.Request) ([]byte, int, http.Header, error) {
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, nil, err
 	}
 	defer response.Body.Close()
 	data, err := io.ReadAll(response.Body)
 	if err != nil {
-		return nil, response.StatusCode, err
+		return nil, response.StatusCode, response.Header, err
 	}
-	return data, response.StatusCode, nil
+	return data, response.StatusCode, response.Header, nil
 }
 
 // Codex.
@@ -354,7 +361,7 @@ func (t *Tracker) fetchCodexUsage(account auth.Account, generation int) AccountU
 }
 
 func (t *Tracker) fetchJSONUsage(account auth.Account, client *http.Client, request *http.Request, parse func(any) []Window) AccountUsage {
-	data, status, err := doJSON(client, request)
+	data, status, _, err := doJSON(client, request)
 	if err != nil {
 		return failedAccount(account, errText(err))
 	}
@@ -395,7 +402,7 @@ func (t *Tracker) fetchGrokUsage(account auth.Account) AccountUsage {
 	request.Header.Set("X-XAI-Token-Auth", "xai-grok-cli")
 	request.Header.Set("Accept", "application/json")
 
-	data, status, err := doJSON(client, request)
+	data, status, _, err := doJSON(client, request)
 	if err != nil {
 		return failedAccount(account, errText(err))
 	}
@@ -470,7 +477,7 @@ func (t *Tracker) fetchClaudeUsage(account auth.Account, generation int) Account
 }
 
 func (t *Tracker) executeClaudeUsageRequest(account auth.Account, client *http.Client, endpoint, token string, generation int) AccountUsage {
-	data, status, err := doJSON(client, makeClaudeUsageRequest(endpoint, token))
+	data, status, header, err := doJSON(client, makeClaudeUsageRequest(endpoint, token))
 	if err != nil {
 		return failedAccount(account, errText(err))
 	}
@@ -478,7 +485,7 @@ func (t *Tracker) executeClaudeUsageRequest(account auth.Account, client *http.C
 		return t.retryClaudeUsageAfterRefresh(account, client, endpoint, generation)
 	}
 	if status < 200 || status >= 300 {
-		return failedAccount(account, fmt.Sprintf("Claude usage API returned %d", status))
+		return failedResponse(account, fmt.Sprintf("Claude usage API returned %d", status), status, header)
 	}
 	windows := ParseClaudeWindows(data)
 	if len(windows) == 0 {
@@ -495,12 +502,12 @@ func (t *Tracker) retryClaudeUsageAfterRefresh(account auth.Account, client *htt
 	if err != nil {
 		return failedAccount(account, "Retry token refresh failed: "+err.Error())
 	}
-	data, status, err := doJSON(client, makeClaudeUsageRequest(endpoint, newToken))
+	data, status, header, err := doJSON(client, makeClaudeUsageRequest(endpoint, newToken))
 	if err != nil || data == nil {
 		return failedAccount(account, "No HTTP response on retry")
 	}
 	if status != 200 {
-		return failedAccount(account, fmt.Sprintf("Claude usage returned %d after refresh retry", status))
+		return failedResponse(account, fmt.Sprintf("Claude usage returned %d after refresh retry", status), status, header)
 	}
 	windows := ParseClaudeWindows(data)
 	if len(windows) == 0 {
@@ -540,7 +547,7 @@ func (t *Tracker) refreshClaudeTokens(filePath string) (string, error) {
 	}
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	data, status, err := doJSON(client, request)
+	data, status, _, err := doJSON(client, request)
 	if err != nil || status != 200 {
 		return "", errors.New("Token refresh failed")
 	}
