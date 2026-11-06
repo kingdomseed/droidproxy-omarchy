@@ -4,8 +4,10 @@ The `droidproxy serve` daemon exposes a local control API. The Omarchy shell
 plugin, the `droidproxy` CLI, and scripts all use it. It replaces the macOS
 app's in-process calls between `AppDelegate`, `SettingsView`, and the managers.
 
-The settings web app (what the bar icon opens) talks to the same daemon over
-plain localhost HTTP instead — see [Settings web UI](#settings-web-ui).
+The bar panel talks to this API through `droidproxy ctl`. The settings web app
+talks to the same daemon over plain localhost HTTP instead — see
+[Settings web UI](#settings-web-ui). `droidproxy open` opens the panel;
+`droidproxy open --web` opens the web app.
 
 ## Transport
 
@@ -73,7 +75,7 @@ All keys are always present. Strings are never `null`; use `""`.
     "repoUrl": "https://github.com/nikships/droidproxy-omarchy",
     "issuesUrl": "https://github.com/nikships/droidproxy-omarchy/issues",
     "cliProxyApiUrl": "https://github.com/router-for-me/CLIProxyAPI",
-    "cliProxyApiVersion": "8.0.51"
+    "cliProxyApiVersion": "8.0.58"
   },
   "server": {
     "running": true,               // ThinkingProxy (:8317) and CLIProxyAPI (:8318) both up
