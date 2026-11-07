@@ -50,6 +50,23 @@ func home(t *testing.T) string {
 	return os.Getenv("HOME")
 }
 
+// TestMain isolates the whole package from the developer's real HOME:
+// SettingsModels reads prefs (per-model toggles), so without this the
+// suite passes or fails with the state of the machine it runs on.
+func TestMain(m *testing.M) {
+	home, err := os.MkdirTemp("", "droidproxy-catalog-test-")
+	if err != nil {
+		panic(err)
+	}
+	os.Setenv("HOME", home)
+	os.Setenv("XDG_CONFIG_HOME", "")
+	os.Setenv("XDG_DATA_HOME", "")
+	os.Setenv("XDG_STATE_HOME", "")
+	code := m.Run()
+	os.RemoveAll(home)
+	os.Exit(code)
+}
+
 // isolateHome redirects paths and prefs to a temp dir for the test.
 func isolateHome(t *testing.T) {
 	t.Helper()
