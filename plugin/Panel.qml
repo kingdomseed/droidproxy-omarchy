@@ -966,12 +966,22 @@ Panel {
       id: providerCardRect
       required property int index
       required property var modelData
+      readonly property color tint: modelData && modelData.color !== "" ? modelData.color : root.accent
       width: parent ? parent.width : 0
       implicitHeight: providerColumn.implicitHeight + Style.space(24)
       radius: Math.max(Style.cornerRadius, Style.space(10))
       color: Style.normalFill
       border.color: Style.normalBorderColor
       border.width: 1
+      clip: true
+
+      Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: Style.space(68)
+        color: Util.alpha(providerCardRect.tint, 0.14)
+      }
 
     Column {
       id: providerColumn
@@ -1001,13 +1011,13 @@ Panel {
           spacing: Style.space(10)
 
           Rectangle {
-            Layout.preferredWidth: Style.space(32)
-            Layout.preferredHeight: Style.space(32)
-            radius: Style.space(8)
-            color: Util.alpha(providerColumn.modelData.color !== "" ? providerColumn.modelData.color : root.foreground, 0.16)
+            Layout.preferredWidth: Style.space(44)
+            Layout.preferredHeight: Style.space(44)
+            radius: Style.space(9)
+            color: Util.alpha(providerCardRect.tint, 0.22)
             Item {
               anchors.fill: parent
-              anchors.margins: Style.space(6)
+              anchors.margins: Style.space(7)
             Image {
               id: providerIcon
               anchors.fill: parent
@@ -1088,7 +1098,7 @@ Panel {
       Text {
         visible: providerColumn.modelData.enabled && providerColumn.modelData.help !== ""
         width: parent.width
-        leftPadding: Style.space(42)
+        leftPadding: Style.space(52)
         wrapMode: Text.WordWrap
         textFormat: Text.PlainText
         text: providerColumn.modelData.help
@@ -1100,7 +1110,7 @@ Panel {
       Text {
         visible: providerColumn.modelData.enabled && providerColumn.modelData.accounts.length > 0
         width: parent.width
-        leftPadding: Style.space(42)
+        leftPadding: Style.space(52)
         textFormat: Text.PlainText
         text: strings.t("section.accounts").toUpperCase()
         color: root.dim
@@ -1127,7 +1137,7 @@ Panel {
 
           Item {
             Layout.fillWidth: true
-            Layout.leftMargin: Style.space(42)
+            Layout.leftMargin: Style.space(52)
             Layout.preferredHeight: accountLabel.implicitHeight + Style.space(8)
 
             Rectangle {
@@ -1193,12 +1203,12 @@ Panel {
         Column {
           visible: accountRow.usageEntry !== null
           width: parent.width
-          leftPadding: Style.space(42)
+          leftPadding: Style.space(52)
           spacing: Style.space(6)
 
           Text {
             visible: accountRow.usageEntry !== null && accountRow.usageEntry.error !== ""
-            width: parent.width - Style.space(42)
+            width: parent.width - Style.space(52)
             wrapMode: Text.WordWrap
             textFormat: Text.PlainText
             text: accountRow.usageEntry ? accountRow.usageEntry.error : ""
@@ -1235,13 +1245,15 @@ Panel {
               onClicked: root.askUseReset(accountRow.usageEntry)
             }
           }
-          Row {
-            spacing: Style.space(6)
+          Column {
+            width: parent.width - Style.space(52)
+            spacing: Style.space(7)
             Repeater {
               model: accountRow.usageEntry ? accountRow.usageEntry.windows : []
-              delegate: Gauge {
+              delegate: QuotaBar {
                 required property int index
                 required property var modelData
+                width: parent.width
                 remaining: modelData.remaining
                 caption: modelData.title
                 tip: modelData.resetText !== "" ? modelData.resetText : (modelData.remaining < 0 ? strings.t("quota.unavailable") : "")
@@ -1249,6 +1261,7 @@ Panel {
                 fontFamily: root.fontFamily
                 hasCursor: root.hot("usage:" + accountRow.usageIndex)
                 confirmed: root.copiedUsageId === String(accountRow.usageIndex)
+                onHovered: function(on) { if (on) root.aim("usage:" + accountRow.usageIndex) }
                 onClicked: root.copyUsage(accountRow.usageIndex)
               }
             }
@@ -1258,7 +1271,7 @@ Panel {
       }
 
       Button {
-        visible: providerColumn.modelData.enabled && providerColumn.modelData.id !== "junie"
+        visible: providerColumn.modelData.enabled && providerColumn.modelData.id !== "junie" && providerColumn.modelData.accounts.length === 0
         text: root.providerBusy(providerColumn.modelData.id) ? strings.t("auth.cancelSignIn") : strings.t("account.add")
         bordered: true
         hasCursor: root.hot("connect:" + providerColumn.modelData.id)
@@ -1272,10 +1285,65 @@ Panel {
         }
       }
 
+      Item {
+        visible: providerColumn.modelData.enabled && providerColumn.modelData.id !== "junie" && providerColumn.modelData.accounts.length > 0
+        width: parent.width
+        implicitHeight: addRow.implicitHeight + Style.space(6)
+
+        Rectangle {
+          anchors.fill: parent
+          anchors.leftMargin: Style.space(44)
+          radius: Style.cornerRadius
+          color: root.hot("connect:" + providerColumn.modelData.id) ? root.hoverFill : "transparent"
+        }
+        Row {
+          id: addRow
+          anchors.left: parent.left
+          anchors.leftMargin: Style.space(52)
+          anchors.verticalCenter: parent.verticalCenter
+          spacing: Style.space(8)
+          Rectangle {
+            width: Style.space(20)
+            height: width
+            radius: Style.space(5)
+            color: Util.alpha(providerCardRect.tint, 0.22)
+            anchors.verticalCenter: parent.verticalCenter
+            Text {
+              anchors.centerIn: parent
+              textFormat: Text.PlainText
+              text: "+"
+              color: providerCardRect.tint
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              font.bold: true
+            }
+          }
+          Text {
+            anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
+            text: root.providerBusy(providerColumn.modelData.id) ? strings.t("auth.cancelSignIn") : strings.t("account.add")
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+          }
+        }
+        MouseArea {
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onEntered: root.aim("connect:" + providerColumn.modelData.id)
+          onClicked: {
+            var id = providerColumn.modelData.id
+            if (root.providerBusy(id)) root.cancelProvider(id)
+            else root.connectProvider(id)
+          }
+        }
+      }
+
       Text {
         visible: providerColumn.modelData.enabled && providerColumn.modelData.models.length > 0
         width: parent.width
-        leftPadding: Style.space(42)
+        leftPadding: Style.space(52)
         textFormat: Text.PlainText
         text: strings.t("section.models").toUpperCase()
         color: root.dim
@@ -1296,7 +1364,7 @@ Panel {
 
           Item {
             Layout.fillWidth: true
-            Layout.leftMargin: Style.space(42)
+            Layout.leftMargin: Style.space(52)
             Layout.preferredHeight: modelLabel.implicitHeight + Style.space(8)
 
             Rectangle {

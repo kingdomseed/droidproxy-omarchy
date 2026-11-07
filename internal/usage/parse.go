@@ -158,13 +158,36 @@ func parseCodexWindows(root any) []Window {
 	}
 
 	var windows []Window
-	if w := codexWindow("5-hour", rateLimit["primary_window"]); w != nil {
+	if w := codexWindow(codexWindowTitle(rateLimit["primary_window"], "5-hour"), rateLimit["primary_window"]); w != nil {
 		windows = append(windows, *w)
 	}
-	if w := codexWindow("Weekly", rateLimit["secondary_window"]); w != nil {
+	if w := codexWindow(codexWindowTitle(rateLimit["secondary_window"], "Weekly"), rateLimit["secondary_window"]); w != nil {
 		windows = append(windows, *w)
 	}
 	return windows
+}
+
+// codexWindowTitle names a window by its length, not its slot: plans
+// without a 5-hour limit (such as prolite) report their only window in the
+// primary slot with a weekly limit_window_seconds. Payloads without a
+// length keep the positional fallback.
+func codexWindowTitle(value any, fallback string) string {
+	window, ok := value.(map[string]any)
+	if !ok {
+		return fallback
+	}
+	length, has := numberValue(window["limit_window_seconds"])
+	if !has || length <= 0 {
+		return fallback
+	}
+	switch {
+	case length >= 6*86400:
+		return "Weekly"
+	case length <= 6*3600:
+		return "5-hour"
+	default:
+		return "Window"
+	}
 }
 
 func codexWindow(title string, value any) *Window {

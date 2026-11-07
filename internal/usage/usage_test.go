@@ -140,6 +140,21 @@ func TestParseCodexWindowsFromRateLimitShape(t *testing.T) {
 	}
 }
 
+func TestParseCodexWindowsLabelsWeeklyLengthPrimaryWindow(t *testing.T) {
+	// Prolite (GPT Pro 100) has no 5-hour limit: its only window sits in the
+	// primary slot with a weekly length.
+	payload := `{"plan_type":"prolite","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":38,"limit_window_seconds":604800,"reset_after_seconds":305334,"reset_at":1794382780},"secondary_window":null}}`
+
+	var body any
+	if err := json.Unmarshal([]byte(payload), &body); err != nil {
+		t.Fatal(err)
+	}
+	windows := parseCodexWindows(body)
+	if len(windows) != 1 || windows[0].Title != "Weekly" {
+		t.Fatalf("windows = %+v, want a single Weekly window", windows)
+	}
+}
+
 func TestParseGenericWindowsPatternMatchesAndSorts(t *testing.T) {
 	payload := `{"a": {"label": "weekly usage", "percentage": 0.2}, "b": {"label": "full plan", "paid_percent": 5}}`
 	var body any

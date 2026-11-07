@@ -121,12 +121,10 @@ func (d *Daemon) State() control.State {
 		windows := make([]control.UsageWindow, 0, len(a.Windows))
 		for _, w := range a.Windows {
 			cw := control.UsageWindow{
-				Title:        w.Title,
-				HasRemaining: w.HasRemaining,
-				ResetText:    w.ResetText,
-			}
-			if w.RemainingPercent != nil {
-				cw.RemainingPercent = *w.RemainingPercent
+				Title:            w.Title,
+				RemainingPercent: w.RemainingPercent,
+				HasRemaining:     w.HasRemaining,
+				ResetText:        w.ResetText,
 			}
 			windows = append(windows, cw)
 		}

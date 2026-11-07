@@ -186,10 +186,13 @@ type UsageResetCredits struct {
 }
 
 type UsageWindow struct {
-	Title            string  `json:"title"`
-	RemainingPercent float64 `json:"remainingPercent"`
-	HasRemaining     bool    `json:"hasRemaining"`
-	ResetText        string  `json:"resetText"`
+	Title string `json:"title"`
+	// RemainingPercent is nil when the provider gave no reading, so a real
+	// 0% (exhausted) stays distinct from unknown. HasRemaining keeps its
+	// Mac meaning: some quota is actually left (> 0).
+	RemainingPercent *float64 `json:"remainingPercent,omitempty"`
+	HasRemaining     bool     `json:"hasRemaining"`
+	ResetText        string   `json:"resetText"`
 }
 
 // Update states.

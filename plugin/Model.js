@@ -80,7 +80,7 @@ function providerList(state) {
 }
 
 function remainingOf(window) {
-  if (!window || window.hasRemaining === false) return -1
+  if (!window) return -1
   if (window.remainingPercent === undefined || window.remainingPercent === null) return -1
   var n = Number(window.remainingPercent)
   if (!isFinite(n)) return -1
