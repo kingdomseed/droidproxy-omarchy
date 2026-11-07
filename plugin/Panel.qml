@@ -99,6 +99,11 @@ Panel {
   // The Flickable lives inside KeyboardPanel's loader scope, so root
   // code reaches it through this bridge (set on its completion).
   property var flick: null
+  // Same bridge for the Junie key field, plus its draft: provider
+  // delegates are rebuilt on every state snapshot, so the draft must
+  // live here or an unrelated state event wipes a half-typed key.
+  property var junieFieldItem: null
+  property string junieDraft: ""
 
   function revealItem(item) {
     if (!item || !flick) return
@@ -296,7 +301,7 @@ Panel {
     var value = String(field.text || "").trim()
     if (value === "") return
     service.call("junie.saveKey", { apiKey: value }, function(result) {
-      if (result.ok) field.text = ""
+      if (result.ok) root.junieDraft = ""
       if (result.ok && result.message) service.showNotice(result.message)
       else if (!result.ok && result.error) service.showNotice(result.error)
     })
@@ -367,6 +372,7 @@ Panel {
     else if (entry.kind === "update-check") service.call("update.check", {})
     else if (entry.kind === "update-install") service.call("update.install", {}, function(result) { root.report(result, result.message || "") })
     else if (entry.kind === "advanced") advancedOpen = !advancedOpen
+    else if (entry.kind === "junie" && junieFieldItem) junieFieldItem.forceActiveFocus()
   }
 
   function removeFocusedAccount() {
@@ -1483,8 +1489,11 @@ Panel {
         spacing: Style.space(8)
         TextField {
           id: junieField
+          Component.onCompleted: root.junieFieldItem = junieField
           Layout.fillWidth: true
           password: true
+          text: root.junieDraft
+          onTextEdited: root.junieDraft = text
           placeholderText: strings.t("junie.placeholder")
           foreground: root.foreground
           font.family: root.fontFamily

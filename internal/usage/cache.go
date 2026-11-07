@@ -116,14 +116,17 @@ func (c *usageCache) invalidate(account auth.Account) {
 func (c *usageCache) recordObserved(account auth.Account, usage AccountUsage) {
 	key := c.keyFor(account)
 	c.mu.Lock()
-	entry, ok := c.entries[key]
-	if !ok {
-		entry = &cacheEntry{}
-		c.entries[key] = entry
+	// Swap in a fresh entry: cached readers convert the entry they hold
+	// after unlocking, so a published entry's sample fields are immutable.
+	next := &cacheEntry{Error: usage.Error, UpdatedAt: usage.UpdatedAt, Windows: cacheWindows(usage.Windows)}
+	if prev, ok := c.entries[key]; ok {
+		next.NextAttemptAt = prev.NextAttemptAt
+		next.RateLimitFailures = prev.RateLimitFailures
+		next.ResetCount = prev.ResetCount
+		next.ResetNextID = prev.ResetNextID
+		next.ResetNextExpiry = prev.ResetNextExpiry
 	}
-	entry.Error = usage.Error
-	entry.UpdatedAt = usage.UpdatedAt
-	entry.Windows = cacheWindows(usage.Windows)
+	c.entries[key] = next
 	c.persistLocked()
 	c.mu.Unlock()
 }

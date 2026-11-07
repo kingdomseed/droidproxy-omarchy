@@ -365,3 +365,49 @@ func TestMetaCacheBudgetIsPerAccountWithMinuteCooldown(t *testing.T) {
 		t.Fatalf("calls = %d after 61s, want 3 (cooldown elapsed)", calls.Load())
 	}
 }
+
+// Cached readers convert the entry they hold after unlocking, so
+// recordObserved must swap in a fresh entry (keeping the budget),
+// never mutate the published one. Run with -race: concurrent cached
+// reads plus observations must stay clean and coherent.
+func TestRecordObservedSwapsEntryAndRacesClean(t *testing.T) {
+	clock := newTestClock()
+	cache := newUsageCache("", clock.now, noJitter)
+	account := auth.Account{ID: "meta:a@example.com", Email: "a@example.com", Type: auth.Meta, FilePath: "/tmp/usage-cache-tests/meta-accounts.json"}
+	used := 10.0
+	sample := func() AccountUsage {
+		now := clock.now()
+		return AccountUsage{UpdatedAt: &now, Windows: []Window{{Title: "5-hour", UsedPercent: &used}}}
+	}
+	cache.usage(account, sample)
+
+	now := clock.now()
+	observed := AccountUsage{UpdatedAt: &now, Windows: []Window{{Title: "5-hour", UsedPercent: &used}, {Title: "Weekly", UsedPercent: &used}}}
+	before := cache.entries[cache.keyFor(account)]
+	cache.recordObserved(account, observed)
+	after := cache.entries[cache.keyFor(account)]
+	if before == after {
+		t.Fatal("recordObserved mutated the published entry in place")
+	}
+	if !after.NextAttemptAt.Equal(before.NextAttemptAt) {
+		t.Fatalf("budget changed: %v -> %v", before.NextAttemptAt, after.NextAttemptAt)
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 50; j++ {
+				_ = cache.usage(account, sample)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 50; j++ {
+				cache.recordObserved(account, observed)
+			}
+		}()
+	}
+	wg.Wait()
+}
