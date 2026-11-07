@@ -18,8 +18,33 @@ import (
 // windowPrimerProviders run their subscription quota in rolling 5-hour
 // windows that start at the first request. Sending one tiny request before
 // the workday starts the clock early, so the window resets mid-session
-// instead of 5 hours after the first real prompt.
+// instead of 5 hours after the first real prompt. Higher plans on these
+// providers (Claude Max/Ultra class, GPT Pro) have no 5-hour window at
+// all, so each account's own usage payload decides (primerAppliesFor).
 var windowPrimerProviders = []auth.ServiceType{auth.Claude, auth.Codex, auth.Meta}
+
+// primerAppliesFor reports whether Auto-start daily can do anything for a
+// provider's accounts: false only when every account's payload positively
+// states it has no short window. Unknown usage keeps the primer available.
+func primerAppliesFor(accounts []usage.AccountUsage) bool {
+	for _, a := range accounts {
+		if has, known := a.HasShortWindow(); has || !known {
+			return true
+		}
+	}
+	return len(accounts) == 0
+}
+
+// primerApplies is primerAppliesFor over the provider's current usage rows.
+func (d *Daemon) primerApplies(st auth.ServiceType) bool {
+	var accounts []usage.AccountUsage
+	for _, a := range d.usage.Accounts() {
+		if a.Provider == string(st) {
+			accounts = append(accounts, a)
+		}
+	}
+	return primerAppliesFor(accounts)
+}
 
 const (
 	// Missing the exact minute (daemon starting late, laptop asleep) still
@@ -66,15 +91,19 @@ func primerProxyRequest(st auth.ServiceType) (path, body string, ok bool) {
 type windowPrimer struct {
 	// send primes one provider and returns how many requests succeeded.
 	send func(auth.ServiceType) int
+	// applies reports whether the provider's accounts have a short window
+	// worth starting (see primerAppliesFor).
+	applies func(auth.ServiceType) bool
 
 	mu          sync.Mutex
 	lastAttempt map[auth.ServiceType]time.Time
 	inFlight    map[auth.ServiceType]bool
 }
 
-func newWindowPrimer(send func(auth.ServiceType) int) *windowPrimer {
+func newWindowPrimer(send func(auth.ServiceType) int, applies func(auth.ServiceType) bool) *windowPrimer {
 	return &windowPrimer{
 		send:        send,
+		applies:     applies,
 		lastAttempt: map[auth.ServiceType]time.Time{},
 		inFlight:    map[auth.ServiceType]bool{},
 	}
@@ -96,7 +125,7 @@ func (p *windowPrimer) run(ctx context.Context) {
 func (p *windowPrimer) tick(now time.Time) {
 	for _, st := range windowPrimerProviders {
 		provider := string(st)
-		if !prefs.WindowPrimerEnabled(provider) ||
+		if !prefs.WindowPrimerEnabled(provider) || !p.applies(st) ||
 			!shouldPrime(now, prefs.WindowPrimerMinutes(provider), prefs.WindowPrimerLastFired(provider)) {
 			continue
 		}

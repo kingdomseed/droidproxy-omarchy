@@ -641,3 +641,41 @@ func TestUpdateMetaAccountsOnlyTouchesMeta(t *testing.T) {
 		t.Fatalf("accounts = %+v", accounts)
 	}
 }
+
+func TestHasShortWindowFollowsTheAccountPayload(t *testing.T) {
+	claude := func(payload string) AccountUsage {
+		return AccountUsage{Windows: ParseClaudeWindows([]byte(payload))}
+	}
+	codex := func(payload string) AccountUsage {
+		var body any
+		if err := json.Unmarshal([]byte(payload), &body); err != nil {
+			t.Fatal(err)
+		}
+		return AccountUsage{Windows: parseCodexWindows(body)}
+	}
+
+	// Weekly-only Claude plan (Max/Ultra class): the five_hour bucket is null.
+	weeklyOnly := claude(`{"five_hour": null, "seven_day": {"utilization": 100.0, "resets_at": "2026-11-08T05:59:59Z"}}`)
+	if has, known := weeklyOnly.HasShortWindow(); has || !known {
+		t.Fatalf("weekly-only Claude: HasShortWindow = (%v, %v), want (false, true)", has, known)
+	}
+	// Idle 5-hour plan: bucket present, no window started yet.
+	idle := claude(`{"five_hour": {"utilization": 0.0, "resets_at": null}, "seven_day": {"utilization": 3.0, "resets_at": "2026-11-08T05:59:59Z"}}`)
+	if has, known := idle.HasShortWindow(); !has || !known {
+		t.Fatalf("idle Claude: HasShortWindow = (%v, %v), want (true, true)", has, known)
+	}
+	// GPT Pro (prolite): only a weekly-length window.
+	pro := codex(`{"plan_type":"prolite","rate_limit":{"primary_window":{"used_percent":38,"limit_window_seconds":604800},"secondary_window":null}}`)
+	if has, known := pro.HasShortWindow(); has || !known {
+		t.Fatalf("prolite Codex: HasShortWindow = (%v, %v), want (false, true)", has, known)
+	}
+	// Standard Codex: 5-hour plus weekly.
+	standard := codex(`{"rate_limit":{"primary_window":{"used_percent":10,"limit_window_seconds":18000},"secondary_window":{"used_percent":20,"limit_window_seconds":604800}}}`)
+	if has, known := standard.HasShortWindow(); !has || !known {
+		t.Fatalf("standard Codex: HasShortWindow = (%v, %v), want (true, true)", has, known)
+	}
+	// No windows: the payload said nothing.
+	if has, known := (AccountUsage{}).HasShortWindow(); has || known {
+		t.Fatalf("empty: HasShortWindow = (%v, %v), want (false, false)", has, known)
+	}
+}

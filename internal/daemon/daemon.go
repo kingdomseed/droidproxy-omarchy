@@ -155,7 +155,7 @@ func (d *Daemon) run() error {
 		d.metaAuth.RefreshAPIKeyIfNeeded(false, nil)
 	}
 	go d.metaKeyRefreshLoop()
-	go newWindowPrimer(d.sendWindowPrimers).run(d.ctx)
+	go newWindowPrimer(d.sendWindowPrimers, d.primerApplies).run(d.ctx)
 	d.updater.StartScheduled(d.ctx)
 
 	// The control API comes up last: once it answers, clients expect every

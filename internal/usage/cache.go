@@ -43,10 +43,11 @@ type cacheEntry struct {
 }
 
 type cacheWindow struct {
-	Title       string     `json:"title"`
-	UsedPercent *float64   `json:"usedPercent,omitempty"`
-	ResetText   string     `json:"resetText,omitempty"`
-	ResetDate   *time.Time `json:"resetDate,omitempty"`
+	Title         string     `json:"title"`
+	UsedPercent   *float64   `json:"usedPercent,omitempty"`
+	ResetText     string     `json:"resetText,omitempty"`
+	ResetDate     *time.Time `json:"resetDate,omitempty"`
+	LengthSeconds int        `json:"lengthSeconds,omitempty"`
 }
 
 type cacheFlight struct {
@@ -168,7 +169,7 @@ func (c *usageCache) finishLocked(key string, account auth.Account, result Accou
 		RateLimitFailures: failures,
 	}
 	for _, w := range usage.Windows {
-		entry.Windows = append(entry.Windows, cacheWindow{Title: w.Title, UsedPercent: w.UsedPercent, ResetText: w.ResetText, ResetDate: w.ResetDate})
+		entry.Windows = append(entry.Windows, cacheWindow{Title: w.Title, UsedPercent: w.UsedPercent, ResetText: w.ResetText, ResetDate: w.ResetDate, LengthSeconds: w.LengthSeconds})
 	}
 	if usage.ResetCredits != nil {
 		entry.ResetCount = usage.ResetCredits.AvailableCount
@@ -189,7 +190,9 @@ func (e *cacheEntry) toUsage(account auth.Account) AccountUsage {
 		UpdatedAt:    e.UpdatedAt,
 	}
 	for _, w := range e.Windows {
-		usage.Windows = append(usage.Windows, newWindow(w.Title, w.UsedPercent, w.ResetText, w.ResetDate))
+		win := newWindow(w.Title, w.UsedPercent, w.ResetText, w.ResetDate)
+		win.LengthSeconds = w.LengthSeconds
+		usage.Windows = append(usage.Windows, win)
 	}
 	if e.ResetCount > 0 {
 		usage.ResetCredits = &ResetCredits{AvailableCount: e.ResetCount, NextCreditID: e.ResetNextID, NextExpiresAt: e.ResetNextExpiry}

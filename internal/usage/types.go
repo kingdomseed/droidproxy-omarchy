@@ -20,6 +20,33 @@ type Window struct {
 	ResetText        string     `json:"resetText"`
 	UsedPercent      *float64   `json:"-"`
 	ResetDate        *time.Time `json:"-"`
+	// LengthSeconds is the window's full length when the payload or the
+	// bucket name states it (0 = unstated). It distinguishes plans with a
+	// short (5-hour-class) window from weekly-only plans.
+	LengthSeconds int `json:"-"`
+}
+
+// shortWindowMaxSeconds bounds a "short" window: the 5-hour class, with
+// slack for providers that round to 5–6 hours.
+const shortWindowMaxSeconds = 6 * 3600
+
+// HasShortWindow reports whether this account's plan includes a short
+// (5-hour-class) quota window, and whether the payload said so at all.
+// Weekly-only plans (Claude Max/Ultra class, GPT Pro) report (false, true);
+// an account whose windows carry no lengths or titles reports (false, false).
+func (a AccountUsage) HasShortWindow() (has, known bool) {
+	for _, w := range a.Windows {
+		switch {
+		case w.LengthSeconds > 0:
+			known = true
+			if w.LengthSeconds <= shortWindowMaxSeconds {
+				has = true
+			}
+		case w.Title == "5-hour":
+			has, known = true, true
+		}
+	}
+	return has, known
 }
 
 // AccountUsage is the usage snapshot for one account.

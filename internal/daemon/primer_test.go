@@ -7,6 +7,7 @@ import (
 
 	"github.com/nikships/droidproxy-omarchy/internal/auth"
 	"github.com/nikships/droidproxy-omarchy/internal/prefs"
+	"github.com/nikships/droidproxy-omarchy/internal/usage"
 )
 
 func primerDate(hour, minute, day int) time.Time {
@@ -101,7 +102,7 @@ func TestWindowPrimerRetriesUntilARequestLands(t *testing.T) {
 		results = results[1:]
 		calls <- st
 		return sent
-	})
+	}, func(auth.ServiceType) bool { return true })
 	// A past day, so the real clock fire() stamps is after its schedule.
 	at := func(hour, minute int) time.Time {
 		return time.Date(2026, time.October, 2, hour, minute, 0, 0, time.Local)
@@ -142,5 +143,28 @@ func TestWindowPrimerRetriesUntilARequestLands(t *testing.T) {
 	case st := <-calls:
 		t.Fatalf("primed %s twice in one day", st)
 	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestPrimerAppliesFor(t *testing.T) {
+	weeklyOnly := usage.AccountUsage{Windows: []usage.Window{{Title: "Weekly", LengthSeconds: 604800}}}
+	withShort := usage.AccountUsage{Windows: []usage.Window{{Title: "5-hour", LengthSeconds: 18000}, {Title: "Weekly", LengthSeconds: 604800}}}
+	unknown := usage.AccountUsage{Error: "boom"}
+
+	cases := []struct {
+		name     string
+		accounts []usage.AccountUsage
+		want     bool
+	}{
+		{"no accounts yet", nil, true},
+		{"usage unknown", []usage.AccountUsage{unknown}, true},
+		{"all weekly-only", []usage.AccountUsage{weeklyOnly, weeklyOnly}, false},
+		{"one account has a 5-hour window", []usage.AccountUsage{weeklyOnly, withShort}, true},
+		{"weekly-only plus unknown stays on", []usage.AccountUsage{weeklyOnly, unknown}, true},
+	}
+	for _, c := range cases {
+		if got := primerAppliesFor(c.accounts); got != c.want {
+			t.Errorf("%s: primerAppliesFor = %v, want %v", c.name, got, c.want)
+		}
 	}
 }

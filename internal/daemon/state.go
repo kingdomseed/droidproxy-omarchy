@@ -72,13 +72,14 @@ func (d *Daemon) State() control.State {
 	providers := make([]control.ProviderState, 0, len(providerOrder))
 	for _, p := range providerOrder {
 		st := control.ProviderState{
-			ID:      string(p.serviceType),
-			Name:    p.serviceType.DisplayName(),
-			Icon:    p.icon,
-			Color:   p.color,
-			Kind:    p.kind,
-			Enabled: prefs.IsProviderEnabled(string(p.serviceType)),
-			Help:    p.help,
+			ID:            string(p.serviceType),
+			Name:          p.serviceType.DisplayName(),
+			Icon:          p.icon,
+			Color:         p.color,
+			Kind:          p.kind,
+			Enabled:       prefs.IsProviderEnabled(string(p.serviceType)),
+			PrimerApplies: d.primerApplies(p.serviceType),
+			Help:          p.help,
 		}
 		bundledRunning := false
 		if command, ok := bundledLoginCommands()[p.serviceType]; ok && d.backend != nil {

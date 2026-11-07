@@ -70,6 +70,7 @@ function providerList(state) {
       icon: safeIcon(provider.icon),
       color: safeColor(provider.color),
       enabled: provider.enabled === true,
+      primerApplies: provider.primerApplies !== false,
       authenticating: provider.authenticating === true,
       help: clip(provider.help, 240),
       accounts: accounts,
@@ -149,6 +150,8 @@ function numberOr(value, fallback) {
 function primer(state, id) {
   var settings = state && state.settings
   if (!settings || !/^[a-z0-9-]+$/.test(id)) return null
+  var provider = providerById(state, id)
+  if (provider && provider.primerApplies === false) return null
   var enabledKey = "windowPrimerEnabled." + id
   var minutesKey = "windowPrimerMinutes." + id
   if (typeof settings[enabledKey] !== "boolean") return null

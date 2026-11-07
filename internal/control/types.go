@@ -87,12 +87,15 @@ const (
 )
 
 type ProviderState struct {
-	ID             string         `json:"id"`
-	Name           string         `json:"name"`
-	Icon           string         `json:"icon"`
-	Color          string         `json:"color"`
-	Kind           string         `json:"kind"`
-	Enabled        bool           `json:"enabled"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Icon    string `json:"icon"`
+	Color   string `json:"color"`
+	Kind    string `json:"kind"`
+	Enabled bool   `json:"enabled"`
+	// PrimerApplies is false only when every account's usage payload states
+	// the plan has no short (5-hour) window, so Auto-start daily is moot.
+	PrimerApplies  bool           `json:"primerApplies"`
 	Authenticating bool           `json:"authenticating"`
 	Help           string         `json:"help"`
 	Accounts       []AccountState `json:"accounts"`
