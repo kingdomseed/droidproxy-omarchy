@@ -42,6 +42,14 @@ type cacheEntry struct {
 	ResetNextExpiry   *time.Time    `json:"resetNextExpiry,omitempty"`
 }
 
+func cacheWindows(windows []Window) []cacheWindow {
+	out := make([]cacheWindow, 0, len(windows))
+	for _, w := range windows {
+		out = append(out, cacheWindow{Title: w.Title, UsedPercent: w.UsedPercent, ResetText: w.ResetText, ResetDate: w.ResetDate, LengthSeconds: w.LengthSeconds})
+	}
+	return out
+}
+
 type cacheWindow struct {
 	Title         string     `json:"title"`
 	UsedPercent   *float64   `json:"usedPercent,omitempty"`
@@ -115,10 +123,7 @@ func (c *usageCache) recordObserved(account auth.Account, usage AccountUsage) {
 	}
 	entry.Error = usage.Error
 	entry.UpdatedAt = usage.UpdatedAt
-	entry.Windows = nil
-	for _, w := range usage.Windows {
-		entry.Windows = append(entry.Windows, cacheWindow{Title: w.Title, UsedPercent: w.UsedPercent, ResetText: w.ResetText, ResetDate: w.ResetDate, LengthSeconds: w.LengthSeconds})
-	}
+	entry.Windows = cacheWindows(usage.Windows)
 	c.persistLocked()
 	c.mu.Unlock()
 }
@@ -207,9 +212,7 @@ func (c *usageCache) finishLocked(key string, account auth.Account, result Accou
 		NextAttemptAt:     next,
 		RateLimitFailures: failures,
 	}
-	for _, w := range usage.Windows {
-		entry.Windows = append(entry.Windows, cacheWindow{Title: w.Title, UsedPercent: w.UsedPercent, ResetText: w.ResetText, ResetDate: w.ResetDate, LengthSeconds: w.LengthSeconds})
-	}
+	entry.Windows = cacheWindows(usage.Windows)
 	if usage.ResetCredits != nil {
 		entry.ResetCount = usage.ResetCredits.AvailableCount
 		entry.ResetNextID = usage.ResetCredits.NextCreditID
