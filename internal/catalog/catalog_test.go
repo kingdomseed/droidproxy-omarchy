@@ -312,6 +312,30 @@ func TestKimiK3UsesMaxReasoningMetadata(t *testing.T) {
 	}
 }
 
+func TestKimiK31ProUsesMaxReasoningMetadata(t *testing.T) {
+	for _, slug := range []string{"kimi-k3.1-pro", "kimi-k3.1-pro-highspeed"} {
+		kimi := mustEntry(t, "custom:droidproxy:"+slug)
+		if kimi["model"] != slug {
+			t.Errorf("%s: model = %v", slug, kimi["model"])
+		}
+		if kimi["provider"] != "openai" {
+			t.Errorf("%s: provider = %v", slug, kimi["provider"])
+		}
+		if kimi["maxOutputTokens"] != 65536 {
+			t.Errorf("%s: maxOutputTokens = %v, want 65536 (registry max_completion_tokens)", slug, kimi["maxOutputTokens"])
+		}
+		if kimi["reasoningEffort"] != "max" || kimi["defaultReasoningEffort"] != "max" {
+			t.Errorf("%s: efforts = %v / %v", slug, kimi["reasoningEffort"], kimi["defaultReasoningEffort"])
+		}
+		assertStringSlice(t, kimi["supportedReasoningEfforts"], []string{"max"})
+	}
+
+	k26 := mustEntry(t, "custom:droidproxy:kimi-k2.6")
+	if k26["maxOutputTokens"] != 65536 {
+		t.Errorf("kimi-k2.6: maxOutputTokens = %v, want 65536 (262144 is its context length)", k26["maxOutputTokens"])
+	}
+}
+
 func TestGemini38FlashHighUsesAntigravityModelMetadata(t *testing.T) {
 	gemini := mustEntry(t, "custom:droidproxy:gemini-3.8-flash-high")
 

@@ -283,8 +283,20 @@ func Definitions() []ModelDefinition {
 		antigravityModel("ag-c46s-thinking", "ag-c46s-thinking", "Claude Sonnet 4.6 (Thinking)", 64000, 0, nil, ""),
 		antigravityModel("ag-c46o-thinking", "ag-c46o-thinking", "Claude Opus 4.6 (Thinking)", 64000, 0, nil, ""),
 
-		// CLIProxyAPI recognizes this catalog ID and removes the `kimi-`
-		// prefix, sending Kimi Code's native `k3` model ID upstream.
+		// CLIProxyAPI recognizes these catalog IDs and removes the `kimi-`
+		// prefix, sending Kimi Code's native model ID upstream.
+		{
+			BaseModel: "kimi-k3.1-pro", IDSlug: "kimi-k3.1-pro", DisplayName: "Kimi K3.1 Pro",
+			MaxOutputTokens: 65536, Provider: "openai", ProviderKey: "kimi",
+			BaseURL: "http://localhost:8317/v1", Kind: KindKimi,
+			Levels: []ThinkingLevel{levelMax}, DefaultLevelValue: "max",
+		},
+		{
+			BaseModel: "kimi-k3.1-pro-highspeed", IDSlug: "kimi-k3.1-pro-highspeed", DisplayName: "Kimi K3.1 Pro Highspeed",
+			MaxOutputTokens: 65536, Provider: "openai", ProviderKey: "kimi",
+			BaseURL: "http://localhost:8317/v1", Kind: KindKimi,
+			Levels: []ThinkingLevel{levelMax}, DefaultLevelValue: "max",
+		},
 		{
 			BaseModel: "kimi-k3", IDSlug: "kimi-k3", DisplayName: "Kimi K3",
 			MaxOutputTokens: 65536, Provider: "openai", ProviderKey: "kimi",
@@ -293,7 +305,7 @@ func Definitions() []ModelDefinition {
 		},
 		{
 			BaseModel: "kimi-k2.6", IDSlug: "kimi-k2.6", DisplayName: "Kimi K2.6",
-			MaxOutputTokens: 262144, Provider: "openai", ProviderKey: "kimi",
+			MaxOutputTokens: 65536, Provider: "openai", ProviderKey: "kimi",
 			BaseURL: "http://localhost:8317/v1", Kind: KindKimi,
 			Levels: []ThinkingLevel{levelHigh}, DefaultLevelValue: "high",
 		},
