@@ -271,20 +271,32 @@ func (d *Daemon) usageAccounts(st auth.ServiceType) []auth.Account {
 func (d *Daemon) usageSignature() string {
 	var parts []string
 	for _, st := range []auth.ServiceType{auth.Codex, auth.Claude, auth.Grok, auth.Meta} {
-		var ids []string
-		for _, a := range d.usageAccounts(st) {
-			if a.Disabled {
-				continue
-			}
-			if st != auth.Meta && a.IsExpired() {
-				continue
-			}
-			ids = append(ids, a.ID)
-		}
-		sort.Strings(ids)
-		parts = append(parts, strings.Join(ids, "|"))
+		parts = append(parts, providerUsageSignature(st, d.usageAccounts(st)))
 	}
 	return strings.Join(parts, "||")
+}
+
+// providerUsageSignature fingerprints one provider's usage-relevant account
+// set. Refreshable accounts carry an access-expired mark: IsExpired() is
+// false for them on both sides of an in-place token renewal, so IDs alone
+// would never retrigger a refresh and the expiry error card would stick.
+func providerUsageSignature(st auth.ServiceType, accounts []auth.Account) string {
+	var ids []string
+	for _, a := range accounts {
+		if a.Disabled {
+			continue
+		}
+		if st != auth.Meta && a.IsExpired() {
+			continue
+		}
+		id := a.ID
+		if st != auth.Meta && a.IsAccessExpired() {
+			id += "#access-expired"
+		}
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return strings.Join(ids, "|")
 }
 
 func (d *Daemon) refreshUsage() {

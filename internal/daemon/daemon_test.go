@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nikships/droidproxy-omarchy/internal/auth"
 	"github.com/nikships/droidproxy-omarchy/internal/backend"
 	"github.com/nikships/droidproxy-omarchy/internal/control"
 	"github.com/nikships/droidproxy-omarchy/internal/desktop"
@@ -483,4 +484,27 @@ func TestDaemonUpdateCheck(t *testing.T) {
 	}
 	stateWhen(t, client, 15*time.Second, func(s control.State) bool { return s.Update.State == control.UpdateUpToDate },
 		"update check to finish")
+}
+
+// A refreshable account whose access token expires and is later renewed
+// in place must change the usage signature: IsExpired() is false on both
+// sides (the token can refresh), so IDs alone would skip the refresh and
+// leave the expiry error card up.
+func TestProviderUsageSignatureChangesOnTokenRenewal(t *testing.T) {
+	past := time.Now().Add(-time.Hour)
+	future := time.Now().Add(time.Hour)
+	expired := []auth.Account{{ID: "codex-a.json", Type: auth.Codex, Expired: &past, CanRefresh: true}}
+	renewed := []auth.Account{{ID: "codex-a.json", Type: auth.Codex, Expired: &future, CanRefresh: true}}
+
+	if providerUsageSignature(auth.Codex, expired) == providerUsageSignature(auth.Codex, renewed) {
+		t.Fatal("signature must change when an expired access token is renewed")
+	}
+	if providerUsageSignature(auth.Codex, renewed) != providerUsageSignature(auth.Codex, renewed) {
+		t.Fatal("signature must be stable for unchanged accounts")
+	}
+	// Unrefreshable expiry still excludes the account entirely.
+	dead := []auth.Account{{ID: "codex-a.json", Type: auth.Codex, Expired: &past, CanRefresh: false}}
+	if got := providerUsageSignature(auth.Codex, dead); got != "" {
+		t.Fatalf("signature for unrefreshable expired account = %q, want empty", got)
+	}
 }

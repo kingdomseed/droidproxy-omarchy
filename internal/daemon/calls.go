@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -266,12 +268,11 @@ func ensureLogsDir() error {
 }
 
 func (d *Daemon) copyServerURL() control.CallResult {
-	host := prefs.BindAddress()
-	displayHost := host
-	if host == "0.0.0.0" {
+	displayHost := prefs.BindAddress()
+	if displayHost == "0.0.0.0" {
 		displayHost = "localhost"
 	}
-	url := fmt.Sprintf("http://%s:%d", displayHost, ProxyPort)
+	url := "http://" + net.JoinHostPort(displayHost, strconv.Itoa(ProxyPort))
 	if err := desktop.CopyToClipboard(url); err != nil {
 		return control.Fail("Could not copy: " + err.Error())
 	}

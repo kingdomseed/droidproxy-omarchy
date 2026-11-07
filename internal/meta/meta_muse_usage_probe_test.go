@@ -28,6 +28,7 @@ type probeEnv struct {
 	prober   *UsageProber
 	requests atomic.Int32
 	status   int
+	header   http.Header
 }
 
 func newProbeEnv(t *testing.T, accounts []Account) *probeEnv {
@@ -44,6 +45,11 @@ func newProbeEnv(t *testing.T, accounts []Account) *probeEnv {
 			r.Header.Get("User-Agent") != "muse-build/1.3.0" ||
 			string(body) != usageProbeBody {
 			t.Errorf("probe request = %s %s %v %s", r.Method, r.URL.Path, r.Header, body)
+		}
+		for k, vs := range env.header {
+			for _, v := range vs {
+				w.Header().Add(k, v)
+			}
 		}
 		w.WriteHeader(env.status)
 		_, _ = io.WriteString(w, "event: response.created\ndata: {\"type\":\"response.created\"}\n\n"+probeUsageLine+"\n\n")
@@ -105,5 +111,15 @@ func TestUsageProbeFailureKeepsStoredSnapshot(t *testing.T) {
 	}
 	if got := env.prober.Usage.Snapshot("a"); got == nil || got.WindowUsedPercent != 5 {
 		t.Fatalf("stored snapshot = %+v", got)
+	}
+}
+
+func TestUsageProbeReportsRateLimit(t *testing.T) {
+	env := newProbeEnv(t, []Account{probeAccount("a", "key-a", time.Now().Add(time.Hour), false)})
+	env.status = http.StatusTooManyRequests
+	env.header = http.Header{"Retry-After": {"3600"}}
+	outcome := env.prober.Probe("a", false)
+	if outcome.Recorded || !outcome.RateLimited || outcome.RetryAfter != "3600" {
+		t.Fatalf("outcome = %+v, want rate-limited with Retry-After 3600", outcome)
 	}
 }

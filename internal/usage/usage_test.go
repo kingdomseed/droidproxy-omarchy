@@ -234,7 +234,7 @@ func newTestEnv(t *testing.T, codexHandler, claudeHandler, tokenHandler http.Han
 	}
 
 	env.tracker = NewTracker()
-	env.tracker.SetMetaProbe(func(string) {})
+	env.tracker.SetMetaProbe(func(string) meta.ProbeOutcome { return meta.ProbeOutcome{} })
 	env.tracker.SetBaseURLs(
 		serverURL(env.codex),
 		serverURL(env.claude),
@@ -551,7 +551,7 @@ func TestRefreshMetaReadsLocalStore(t *testing.T) {
 		}
 	})
 	var probed sync.Map
-	env.tracker.SetMetaProbe(func(accountID string) { probed.Store(accountID, true) })
+	env.tracker.SetMetaProbe(func(accountID string) meta.ProbeOutcome { probed.Store(accountID, true); return meta.ProbeOutcome{} })
 	env.tracker.Refresh(nil, nil, nil, []auth.Account{
 		{ID: "meta-1", Email: "m@x.com", Type: auth.Meta},
 		{ID: "meta-2", Email: "n@x.com", Type: auth.Meta},
@@ -634,7 +634,10 @@ func TestUpdateMetaAccountsOnlyTouchesMeta(t *testing.T) {
 			WeeklyUsedPercent: 2, WeeklyResetsAt: time.Now().Add(24 * time.Hour), ObservedAt: observed,
 		}
 	})
-	env.tracker.SetMetaProbe(func(string) { t.Error("a live Meta update must read the store without probing") })
+	env.tracker.SetMetaProbe(func(string) meta.ProbeOutcome {
+		t.Error("a live Meta update must read the store without probing")
+		return meta.ProbeOutcome{}
+	})
 	env.tracker.UpdateMetaAccounts([]auth.Account{{ID: "m1", Email: "m@x.com", Type: auth.Meta}})
 	accounts := env.tracker.Accounts()
 	if len(accounts) != 1 || accounts[0].Error != "" || len(accounts[0].Windows) != 2 {
@@ -651,7 +654,7 @@ func TestUpdateMetaAccountsReconcilesCachedSample(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	tracker := NewTracker()
 	tracker.SetMetaSnapshots(func(string) *meta.UsageSnapshot { return snapshot })
-	tracker.SetMetaProbe(func(string) { probes++ })
+	tracker.SetMetaProbe(func(string) meta.ProbeOutcome { probes++; return meta.ProbeOutcome{Recorded: true} })
 	account := auth.Account{ID: "m1", Email: "m@x.com", Type: auth.Meta}
 
 	first := tracker.fetch([]auth.Account{account})

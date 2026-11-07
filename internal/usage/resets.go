@@ -30,6 +30,10 @@ type ResetCredits struct {
 	AvailableCount int
 	NextCreditID   string
 	NextExpiresAt  *time.Time
+	// NextResetsLeft is how many resets the next Claude grant itself
+	// holds; part of the redemption idempotency key so each logical
+	// redemption differs while retries of one attempt stay identical.
+	NextResetsLeft int
 }
 
 // codexCreditsURL derives the reset-credits URL from the usage URL
@@ -79,7 +83,7 @@ func codexResetCredits(data []byte, now time.Time) *ResetCredits {
 	return &ResetCredits{AvailableCount: len(credits), NextCreditID: credits[0].ID, NextExpiresAt: &next}
 }
 
-func codexRequest(client *http.Client, method, endpoint, token, chatGPTAccountID string, body []byte) ([]byte, int, error) {
+func codexRequest(client *http.Client, method, endpoint, token, chatGPTAccountID string, body []byte) ([]byte, int, http.Header, error) {
 	var reader *bytes.Reader
 	if body != nil {
 		reader = bytes.NewReader(body)
@@ -88,7 +92,7 @@ func codexRequest(client *http.Client, method, endpoint, token, chatGPTAccountID
 	}
 	request, err := http.NewRequest(method, endpoint, reader)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, nil, err
 	}
 	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("Accept", "application/json")
@@ -99,27 +103,30 @@ func codexRequest(client *http.Client, method, endpoint, token, chatGPTAccountID
 	if chatGPTAccountID != "" {
 		request.Header.Set("ChatGPT-Account-Id", chatGPTAccountID)
 	}
-	data, status, _, err := doJSON(client, request)
-	return data, status, err
+	return doJSON(client, request)
 }
 
 // fetchCodexResetCredits is best-effort: a failed credits read never fails
-// the usage read it rides along with.
-func (t *Tracker) fetchCodexResetCredits(account auth.Account) *ResetCredits {
+// the usage read it rides along with. A 429 still reports its cooldown so
+// the sample's polling budget honors it.
+func (t *Tracker) fetchCodexResetCredits(account auth.Account) (credits *ResetCredits, rateLimited bool, retryAfter *time.Time) {
 	authData, ok := authValues(account.FilePath)
 	if !ok {
-		return nil
+		return nil, false, nil
 	}
 	token, ok := authData["access_token"]
 	if !ok || account.IsAccessExpired() {
-		return nil
+		return nil, false, nil
 	}
 	client, endpoint := t.clientAndURL("codex")
-	data, status, err := codexRequest(client, http.MethodGet, codexCreditsURL(endpoint), token, authData["account_id"], nil)
+	data, status, header, err := codexRequest(client, http.MethodGet, codexCreditsURL(endpoint), token, authData["account_id"], nil)
 	if err != nil || status < 200 || status >= 300 {
-		return nil
+		if status == http.StatusTooManyRequests {
+			return nil, true, retryAfterDate(header.Get("Retry-After"), time.Now())
+		}
+		return nil, false, nil
 	}
-	return codexResetCredits(data, time.Now())
+	return codexResetCredits(data, time.Now()), false, nil
 }
 
 // redeemNamespace matches T3 Code's UUIDv5 namespace, so a retry from
@@ -178,7 +185,7 @@ func parseClaudeResetCredits(data []byte, now time.Time) *ResetCredits {
 		left, _ := numberValue(grant["resets_left"])
 		count += int(left)
 		if id == nextID {
-			next = &ResetCredits{NextCreditID: id, NextExpiresAt: endsAt}
+			next = &ResetCredits{NextCreditID: id, NextExpiresAt: endsAt, NextResetsLeft: int(left)}
 		}
 	}
 	if next == nil || count == 0 {
@@ -224,7 +231,7 @@ func (t *Tracker) redeemCodexReset(account auth.Account) (string, bool) {
 	}
 	client, endpoint := t.clientAndURL("codex")
 	creditsURL := codexCreditsURL(endpoint)
-	data, status, err := codexRequest(client, http.MethodGet, creditsURL, token, authData["account_id"], nil)
+	data, status, _, err := codexRequest(client, http.MethodGet, creditsURL, token, authData["account_id"], nil)
 	if err != nil || status < 200 || status >= 300 {
 		return "Could not read banked resets for this account.", false
 	}
@@ -241,7 +248,7 @@ func (t *Tracker) redeemCodexReset(account auth.Account) (string, bool) {
 		"redeem_request_id": redeemRequestID(accountKey + ":" + credit.ID),
 		"credit_id":         credit.ID,
 	})
-	data, status, err = codexRequest(client, http.MethodPost, creditsURL+"/consume", token, authData["account_id"], body)
+	data, status, _, err = codexRequest(client, http.MethodPost, creditsURL+"/consume", token, authData["account_id"], body)
 	if err != nil || status < 200 || status >= 300 {
 		return "Codex could not redeem the reset.", false
 	}
@@ -325,9 +332,12 @@ func (t *Tracker) redeemClaudeReset(account auth.Account) (string, bool) {
 	parsed.Path = "/api/organizations/" + url.PathEscape(organization) + "/reset_rate_limits"
 	parsed.RawQuery = ""
 	body, _ := json.Marshal(map[string]string{
-		"program":    "cedar_ember",
-		"grant_id":   credits.NextCreditID,
-		"request_id": redeemRequestID("claude:" + organization + ":" + credits.NextCreditID),
+		"program":  "cedar_ember",
+		"grant_id": credits.NextCreditID,
+		// resets_left distinguishes logical redemptions of one
+		// multi-reset grant; a retry before the spend lands still
+		// observes the same count and reuses the key.
+		"request_id": redeemRequestID(fmt.Sprintf("claude:%s:%s:%d", organization, credits.NextCreditID, credits.NextResetsLeft)),
 	})
 	request, err := http.NewRequest(http.MethodPost, parsed.String(), bytes.NewReader(body))
 	if err != nil {

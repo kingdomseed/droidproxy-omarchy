@@ -331,3 +331,42 @@ func TestKillOrphanedProcessesNoneFound(t *testing.T) {
 		}
 	}
 }
+
+// A helper that fails after the liveness result (an abandoned browser
+// login timing out) must still notify: State derives Authenticating from
+// AuthRunning, and without an event the panel stays on Cancel sign-in.
+func TestAuthHelperNonzeroExitPublishesAuthDirectoryChanged(t *testing.T) {
+	m, dir := newTestManager(t)
+	writeScript(t, filepath.Join(dir, "cli-proxy-api"), "sleep 2\nexit 1\n")
+
+	changed := make(chan struct{}, 1)
+	unsubscribe := events.Subscribe(events.AuthDirectoryChanged, func() {
+		select {
+		case changed <- struct{}{}:
+		default:
+		}
+	})
+	defer unsubscribe()
+
+	ok, _ := m.RunAuthCommand(ClaudeLogin)
+	if !ok {
+		t.Fatal("login should report the browser opened")
+	}
+	// The bus is process-wide; drop events other tests published.
+	select {
+	case <-changed:
+	default:
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for m.AuthRunning(ClaudeLogin) && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if m.AuthRunning(ClaudeLogin) {
+		t.Fatal("helper still tracked after exit")
+	}
+	select {
+	case <-changed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("no AuthDirectoryChanged after the helper exited nonzero")
+	}
+}

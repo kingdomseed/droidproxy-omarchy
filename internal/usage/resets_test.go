@@ -111,6 +111,49 @@ func TestRedeemClaudeResetPostsGrantClaim(t *testing.T) {
 	}
 }
 
+func TestRedeemClaudeResetUsesDistinctKeyPerRedemption(t *testing.T) {
+	left := 2
+	seen := map[string]bool{}
+	var requestIDs []string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/oauth/usage", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"five_hour":{"utilization":100},"cedar_ember":{"eligible":true,"next_grant_id":"g1","grants":[{"id":"g1","resets_left":` + strconv.Itoa(left) + `,"ends_at":"2999-01-01T00:00:00Z","usable_now":true}]}}`))
+	})
+	mux.HandleFunc("/api/organizations/org-1/reset_rate_limits", func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		id, _ := body["request_id"].(string)
+		requestIDs = append(requestIDs, id)
+		if seen[id] {
+			_, _ = w.Write([]byte(`{"result":"already_used"}`))
+			return
+		}
+		seen[id] = true
+		left--
+		_, _ = w.Write([]byte(`{"result":"reset"}`))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	t.Setenv("HOME", t.TempDir())
+	tracker := NewTracker()
+	tracker.SetBaseURLs("", srv.URL+"/api/oauth/usage", "")
+	path := writeAuthFile(t, map[string]any{"access_token": "tok", "organization_uuid": "org-1"})
+	account := auth.Account{ID: "claude.json", Type: auth.Claude, FilePath: path}
+
+	for i := 0; i < 2; i++ {
+		if message, ok := tracker.RedeemReset(account); !ok {
+			t.Fatalf("redeem %d failed: %s", i, message)
+		}
+	}
+	if left != 0 {
+		t.Fatalf("resets_left = %d, want both resets actually spent (request ids %v)", left, requestIDs)
+	}
+	if len(requestIDs) != 2 || requestIDs[0] == requestIDs[1] {
+		t.Fatalf("request ids = %v, want two distinct keys", requestIDs)
+	}
+}
+
 func TestRedeemResetInvalidatesCachedUsage(t *testing.T) {
 	usageHits := 0
 	mux := http.NewServeMux()

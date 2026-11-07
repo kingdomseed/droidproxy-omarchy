@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -52,10 +54,16 @@ func ProxyHost() string {
 	return bind
 }
 
+// ProxyBaseURL is the user-facing proxy origin. JoinHostPort brackets
+// IPv6 bind addresses, which raw concatenation would leave invalid.
+func ProxyBaseURL() string {
+	return "http://" + net.JoinHostPort(ProxyHost(), strconv.Itoa(proxyPort))
+}
+
 // CurlCommand is the command a gauge copies for one account.
 func CurlCommand(provider, accountID string) string {
-	return fmt.Sprintf("curl -s 'http://%s:%d%s?provider=%s&account=%s'",
-		ProxyHost(), proxyPort, EndpointPath, provider, encodeQueryValue(accountID))
+	return fmt.Sprintf("curl -s '%s%s?provider=%s&account=%s'",
+		ProxyBaseURL(), EndpointPath, provider, encodeQueryValue(accountID))
 }
 
 // encodeQueryValue keeps the characters the macOS app leaves readable (such
@@ -66,7 +74,7 @@ func encodeQueryValue(s string) string {
 	var b strings.Builder
 	for i := 0; i < len(s); i++ {
 		c := s[i]
-		if 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || '0' <= c && c <= '9' || strings.IndexByte("-._~!$()*,;:@/?", c) >= 0 {
+		if 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' || '0' <= c && c <= '9' || strings.IndexByte("-._~!$()*,:@/?", c) >= 0 {
 			b.WriteByte(c)
 			continue
 		}

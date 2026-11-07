@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -192,7 +191,7 @@ func sendPrimerThroughProxy(st auth.ServiceType) bool {
 	if !ok {
 		return false
 	}
-	url := fmt.Sprintf("http://%s:%d%s", usage.ProxyHost(), ProxyPort, path)
+	url := usage.ProxyBaseURL() + path
 	request, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
 	if err != nil {
 		logx.Logf("[WindowPrimer] %s request failed: %v", st, err)

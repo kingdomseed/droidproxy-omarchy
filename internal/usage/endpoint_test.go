@@ -3,6 +3,7 @@ package usage
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/nikships/droidproxy-omarchy/internal/auth"
+	"github.com/nikships/droidproxy-omarchy/internal/prefs"
 )
 
 func TestParseEndpointFilter(t *testing.T) {
@@ -36,6 +38,40 @@ func TestCurlCommandEncodesAccountAndTargetsProxyPort(t *testing.T) {
 	}
 	if strings.Contains(CurlCommand("meta", "it's"), "it's") {
 		t.Fatal("single quote was not escaped")
+	}
+}
+
+func TestCurlCommandBracketsIPv6BindAddress(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", "")
+	if err := prefs.Shared().Set(prefs.KeyBetaFlag, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := prefs.Shared().Set(prefs.KeyBindAddress, "::1"); err != nil {
+		t.Fatal(err)
+	}
+	command := CurlCommand("codex", "codex-a.json")
+	if !strings.Contains(command, "http://[::1]:8317/droidproxy/usage") {
+		t.Fatalf("command = %s, want bracketed IPv6 authority", command)
+	}
+}
+
+// A raw semicolon in the account value makes Go's query parser drop the
+// pair, silently un-filtering the response; the copied curl must encode it.
+func TestCurlCommandRoundTripsSemicolonAccount(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	command := CurlCommand("claude", "claude-seat;work.json")
+	if !strings.Contains(command, "claude-seat%3Bwork.json") {
+		t.Fatalf("command = %s, want percent-encoded semicolon", command)
+	}
+	raw := strings.TrimSuffix(strings.TrimPrefix(command, "curl -s '"), "'")
+	u, err := url.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	filter, ok := ParseEndpointFilter(u.RequestURI())
+	if !ok || filter.Provider != "claude" || filter.Account != "claude-seat;work.json" {
+		t.Fatalf("round-trip filter = %+v, %v", filter, ok)
 	}
 }
 

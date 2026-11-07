@@ -13,6 +13,7 @@ import (
 
 	"github.com/nikships/droidproxy-omarchy/internal/auth"
 	"github.com/nikships/droidproxy-omarchy/internal/grok"
+	"github.com/nikships/droidproxy-omarchy/internal/meta"
 )
 
 type testClock struct {
@@ -272,6 +273,67 @@ func TestGrokUsage429IsRateLimited(t *testing.T) {
 	got := tracker.fetchGrokUsage(account)
 	if !got.RateLimited || got.RetryAfter == nil {
 		t.Fatalf("RateLimited=%v RetryAfter=%v, want rate-limited with Retry-After", got.RateLimited, got.RetryAfter)
+	}
+}
+
+// A 429 from the Codex credits read must cool the whole sample down even
+// when the usage read itself succeeded; otherwise the next poll 15s later
+// re-hits the credits endpoint against the provider's Retry-After.
+func TestCodexCredits429MarksSampleRateLimited(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/wham/usage", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"rate_limit":{"primary_window":{"used_percent":10,"limit_window_seconds":18000}}}`))
+	})
+	mux.HandleFunc("/wham/rate-limit-reset-credits", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "3600")
+		w.WriteHeader(http.StatusTooManyRequests)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	t.Setenv("HOME", t.TempDir())
+	tracker := NewTracker()
+	tracker.SetBaseURLs(srv.URL+"/wham/usage", "", "")
+	path := writeAuthFile(t, map[string]any{"access_token": "tok", "account_id": "acct-1"})
+	account := auth.Account{ID: "codex.json", Type: auth.Codex, FilePath: path}
+
+	got := tracker.fetchCodexUsage(account)
+	if got.Error != "" {
+		t.Fatalf("usage read itself succeeded, got error %q", got.Error)
+	}
+	if !got.RateLimited || got.RetryAfter == nil {
+		t.Fatalf("RateLimited=%v RetryAfter=%v, want credits 429 propagated", got.RateLimited, got.RetryAfter)
+	}
+	if until := time.Until(*got.RetryAfter); until < 59*time.Minute || until > 61*time.Minute {
+		t.Fatalf("RetryAfter in %v, want ~1h", until)
+	}
+}
+
+// A 429 from the Meta probe must mark the sample rate-limited so the
+// cache honors the provider cooldown instead of the 60s interval.
+func TestMetaProbe429MarksSampleRateLimited(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	tracker := NewTracker()
+	tracker.SetMetaSnapshots(func(string) *meta.UsageSnapshot {
+		return &meta.UsageSnapshot{
+			WindowUsedPercent: 10, WindowResetsAt: time.Now().Add(time.Hour), WindowDurationMins: 300,
+			WeeklyUsedPercent: 20, WeeklyResetsAt: time.Now().Add(24 * time.Hour), ObservedAt: time.Now(),
+		}
+	})
+	tracker.SetMetaProbe(func(string) meta.ProbeOutcome {
+		return meta.ProbeOutcome{RateLimited: true, RetryAfter: "3600"}
+	})
+	account := auth.Account{ID: "m1", Email: "m@x.com", Type: auth.Meta}
+
+	got := tracker.fetchMetaUsage(account)
+	if got.Error != "" {
+		t.Fatalf("stored snapshot should serve, got error %q", got.Error)
+	}
+	if !got.RateLimited || got.RetryAfter == nil {
+		t.Fatalf("RateLimited=%v RetryAfter=%v, want probe 429 propagated", got.RateLimited, got.RetryAfter)
+	}
+	if until := time.Until(*got.RetryAfter); until < 59*time.Minute || until > 61*time.Minute {
+		t.Fatalf("RetryAfter in %v, want ~1h", until)
 	}
 }
 

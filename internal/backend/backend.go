@@ -482,15 +482,16 @@ func (m *Manager) RunAuthCommandAsync(command AuthCommand, completion func(bool,
 		exited.Store(true)
 		close(done)
 		logx.Logf("[Auth] Process terminated with exit code: %d", code)
-		// Notify watchers when auth completes successfully so the UI picks up
-		// the freshly written credential file.
-		if code == 0 {
-			go func() {
+		// Notify watchers on every termination: success brings a freshly
+		// written credential file, and any exit clears AuthRunning, which
+		// State surfaces as the provider's Authenticating flag.
+		go func() {
+			if code == 0 {
 				time.Sleep(authMigrationDelay)
 				claude.MigrateCanonicalFiles(paths.AuthDir())
-				events.Publish(events.AuthDirectoryChanged)
-			}()
-		}
+			}
+			events.Publish(events.AuthDirectoryChanged)
+		}()
 	}()
 
 	// For Codex login, avoid blocking on the manual callback prompt after ~12s.

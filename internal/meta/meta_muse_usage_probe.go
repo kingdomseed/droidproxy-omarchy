@@ -48,14 +48,28 @@ func NewUsageProber() *UsageProber {
 	}
 }
 
+// ProbeOutcome is what one probe attempt learned. RetryAfter carries the
+// raw Retry-After header when the API answered 429, so callers with a
+// polling budget can honor the provider's cooldown.
+type ProbeOutcome struct {
+	Recorded    bool
+	RateLimited bool
+	RetryAfter  string
+}
+
 // Refresh records a fresh snapshot for the account when its stored one is
 // older than usageProbeInterval (or always, with force). Any failure keeps
 // the stored snapshot, so the card falls back to its "as of" value. It
 // reports whether a request completed and recorded a snapshot.
 func (p *UsageProber) Refresh(accountID string, force bool) bool {
+	return p.Probe(accountID, force).Recorded
+}
+
+// Probe is Refresh with the rate-limit outcome attached.
+func (p *UsageProber) Probe(accountID string, force bool) ProbeOutcome {
 	now := time.Now()
 	if !force && isUsageFresh(p.Usage.Snapshot(accountID), now) {
-		return false
+		return ProbeOutcome{}
 	}
 	var apiKey string
 	for _, a := range p.Credentials.Accounts() {
@@ -66,13 +80,13 @@ func (p *UsageProber) Refresh(accountID string, force bool) bool {
 		}
 	}
 	if apiKey == "" {
-		return false
+		return ProbeOutcome{}
 	}
 
 	request, err := http.NewRequest(http.MethodPost, p.BaseURL+"/v1/responses", strings.NewReader(usageProbeBody))
 	if err != nil {
 		logx.Logf("[Meta] Usage probe failed: %v", err)
-		return false
+		return ProbeOutcome{}
 	}
 	request.Header.Set("Authorization", "Bearer "+apiKey)
 	request.Header.Set("Content-Type", "application/json")
@@ -82,12 +96,15 @@ func (p *UsageProber) Refresh(accountID string, force bool) bool {
 	response, err := p.Client.Do(request)
 	if err != nil {
 		logx.Logf("[Meta] Usage probe failed: %v", err)
-		return false
+		return ProbeOutcome{}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		logx.Logf("[Meta] Usage probe got HTTP %d", response.StatusCode)
-		return false
+		if response.StatusCode == http.StatusTooManyRequests {
+			return ProbeOutcome{RateLimited: true, RetryAfter: response.Header.Get("Retry-After")}
+		}
+		return ProbeOutcome{}
 	}
 	reader := bufio.NewReader(response.Body)
 	for {
@@ -96,16 +113,16 @@ func (p *UsageProber) Refresh(accountID string, force bool) bool {
 		if strings.HasPrefix(line, "data:") && strings.Contains(line, "response.subscription_usage") {
 			snapshot := ParseUsageEvent(line, time.Now())
 			if snapshot == nil {
-				return false
+				return ProbeOutcome{}
 			}
 			p.Usage.Record(accountID, *snapshot)
-			return true
+			return ProbeOutcome{Recorded: true}
 		}
 		if readErr != nil {
 			if readErr != io.EOF {
 				logx.Logf("[Meta] Usage probe failed: %v", readErr)
 			}
-			return false
+			return ProbeOutcome{}
 		}
 	}
 }

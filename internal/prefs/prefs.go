@@ -141,6 +141,32 @@ func (s *Store) Set(key string, v any) error {
 	return err
 }
 
+// setMapBool atomically sets one entry of a map[string]bool preference.
+// Reading the map, changing one entry, and persisting happen under one
+// lock: concurrent callers each editing a different entry (control calls
+// run per-connection) must not lose each other's updates.
+func (s *Store) setMapBool(key, entry string, value bool) error {
+	s.mu.Lock()
+	m := map[string]bool{}
+	if raw, ok := s.values[key]; ok {
+		_ = json.Unmarshal(raw, &m)
+	}
+	m[entry] = value
+	raw, err := json.Marshal(m)
+	if err != nil {
+		s.mu.Unlock()
+		return err
+	}
+	s.values[key] = raw
+	err = s.persistLocked()
+	s.mu.Unlock()
+	if err != nil {
+		logx.Logf("[Prefs] Failed to persist %s: %v", key, err)
+	}
+	events.Publish(events.PrefsChanged)
+	return err
+}
+
 // Delete removes key.
 func (s *Store) Delete(key string) error {
 	s.mu.Lock()
@@ -227,9 +253,7 @@ func IsProviderEnabled(provider string) bool {
 
 // SetProviderEnabled persists the enabled state for provider.
 func SetProviderEnabled(provider string, enabled bool) error {
-	m := EnabledProviders()
-	m[provider] = enabled
-	return Shared().Set(KeyEnabledProviders, m)
+	return Shared().setMapBool(KeyEnabledProviders, provider, enabled)
 }
 
 // EnabledModels returns the per-model enabled map, keyed by catalog ID slug
@@ -251,9 +275,7 @@ func IsModelEnabled(slug string) bool {
 
 // SetModelEnabled persists the enabled state for one catalog model.
 func SetModelEnabled(slug string, enabled bool) error {
-	m := EnabledModels()
-	m[slug] = enabled
-	return Shared().Set(KeyEnabledModels, m)
+	return Shared().setMapBool(KeyEnabledModels, slug, enabled)
 }
 
 // DefaultWindowPrimerMinutes is 07:00, in minutes after local midnight.

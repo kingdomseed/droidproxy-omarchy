@@ -59,7 +59,7 @@ type Tracker struct {
 	metaSnapshots func(accountID string) *meta.UsageSnapshot
 	// probeMeta refreshes a stale Meta snapshot before it is read. Defaults to
 	// a live api.meta.ai probe; tests inject a stub.
-	probeMeta func(accountID string)
+	probeMeta func(accountID string) meta.ProbeOutcome
 
 	cache *usageCache
 }
@@ -74,7 +74,7 @@ func NewTracker() *Tracker {
 		grokUsageURL:   grokUsageEndpoint,
 		grokToken:      grok.AccessToken,
 		metaSnapshots:  func(accountID string) *meta.UsageSnapshot { return meta.SharedUsageStore().Snapshot(accountID) },
-		probeMeta:      func(accountID string) { meta.NewUsageProber().Refresh(accountID, false) },
+		probeMeta:      func(accountID string) meta.ProbeOutcome { return meta.NewUsageProber().Probe(accountID, false) },
 		cache: newUsageCache(filepath.Join(paths.DataDir(), "usage-cache.json"), time.Now, func() time.Duration {
 			return time.Duration(rand.Int64N(int64(30 * time.Second)))
 		}),
@@ -115,7 +115,7 @@ func (t *Tracker) SetMetaSnapshots(fn func(accountID string) *meta.UsageSnapshot
 }
 
 // SetMetaProbe injects the stale-snapshot Meta probe (tests only).
-func (t *Tracker) SetMetaProbe(fn func(accountID string)) {
+func (t *Tracker) SetMetaProbe(fn func(accountID string) meta.ProbeOutcome) {
 	t.mu.Lock()
 	t.probeMeta = fn
 	t.mu.Unlock()
@@ -386,7 +386,12 @@ func (t *Tracker) fetchCodexUsage(account auth.Account) AccountUsage {
 
 	usage := t.fetchJSONUsage(account, client, request, parseCodexWindows)
 	if usage.Error == "" {
-		usage.ResetCredits = t.fetchCodexResetCredits(account)
+		credits, limited, retryAfter := t.fetchCodexResetCredits(account)
+		usage.ResetCredits = credits
+		if limited {
+			usage.RateLimited = true
+			usage.RetryAfter = retryAfter
+		}
 	}
 	return usage
 }
@@ -464,8 +469,15 @@ func (t *Tracker) fetchMetaUsage(account auth.Account) AccountUsage {
 	t.mu.Lock()
 	probe := t.probeMeta
 	t.mu.Unlock()
-	probe(account.ID)
-	return t.storedMetaUsage(account)
+	outcome := probe(account.ID)
+	usage := t.storedMetaUsage(account)
+	if outcome.RateLimited {
+		// The stored snapshot still serves, but the cache must honor
+		// the provider cooldown instead of the 60s probe interval.
+		usage.RateLimited = true
+		usage.RetryAfter = retryAfterDate(outcome.RetryAfter, time.Now())
+	}
+	return usage
 }
 
 // storedMetaUsage is the account's last observed Meta usage, without probing.
