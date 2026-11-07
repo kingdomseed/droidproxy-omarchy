@@ -212,6 +212,17 @@ function providerById(state, id) {
   return null
 }
 
+// Index into usageAccounts(state) for one provider account, by account id
+// first and then by provider + email, or -1 when the account has no usage.
+function usageIndexForAccount(usage, providerId, account) {
+  if (!account) return -1
+  for (var i = 0; i < usage.length; i++)
+    if (usage[i].provider === providerId && usage[i].id === account.id) return i
+  for (var j = 0; j < usage.length; j++)
+    if (usage[j].provider === providerId && account.email && usage[j].email === account.email) return j
+  return -1
+}
+
 function cursorEntries(state, ui) {
   var advanced = !!(ui && ui.advanced)
   var entries = []
@@ -219,7 +230,6 @@ function cursorEntries(state, ui) {
 
   add({ id: "server", kind: "server" })
   if (state && state.server && state.server.url) add({ id: "copy-url", kind: "copy-url" })
-  add({ id: "factory", kind: "factory" })
   var pending = signIn(state)
   if (pending) {
     add({ id: "signin-copy", kind: "signin-copy" })
@@ -229,10 +239,6 @@ function cursorEntries(state, ui) {
 
   var usage = usageAccounts(state)
   if (usage.length > 0) add({ id: "refresh", kind: "refresh" })
-  for (var u = 0; u < usage.length; u++) {
-    add({ id: "usage:" + u, kind: "usage", index: u })
-    if (usage[u].resetCount > 0) add({ id: "reset:" + u, kind: "reset", index: u })
-  }
 
   var providers = providerList(state)
   for (var p = 0; p < providers.length; p++) {
@@ -247,7 +253,14 @@ function cursorEntries(state, ui) {
         provider: provider.id,
         accountId: account.id
       })
+      var u = usageIndexForAccount(usage, provider.id, account)
+      if (u >= 0) {
+        add({ id: "usage:" + u, kind: "usage", index: u })
+        if (usage[u].resetCount > 0) add({ id: "reset:" + u, kind: "reset", index: u })
+      }
     }
+    if (provider.id === "junie") add({ id: "junie", kind: "junie" })
+    else add({ id: "connect:" + provider.id, kind: "connect", provider: provider.id })
     for (var mo = 0; mo < provider.models.length; mo++) {
       add({
         id: "model:" + provider.models[mo].slug,
@@ -256,8 +269,6 @@ function cursorEntries(state, ui) {
         slug: provider.models[mo].slug
       })
     }
-    if (provider.id === "junie") add({ id: "junie", kind: "junie" })
-    else add({ id: "connect:" + provider.id, kind: "connect", provider: provider.id })
     if (primer(state, provider.id)) add({ id: "primer:" + provider.id, kind: "primer", provider: provider.id })
     if (provider.id === "codex") {
       var modes = fastModes(state)
@@ -267,6 +278,7 @@ function cursorEntries(state, ui) {
       add({ id: "contributor", kind: "setting", key: "metaContributorMode" })
   }
 
+  add({ id: "factory", kind: "factory" })
   add({ id: "advanced", kind: "advanced" })
   if (advanced) {
     add({ id: "launch", kind: "setting", key: "launchAtLogin" })

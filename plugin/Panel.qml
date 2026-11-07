@@ -180,6 +180,15 @@ Panel {
     confirmName = account.displayName
   }
 
+  function usageForAccount(providerId, account) {
+    var index = Model.usageIndexForAccount(root.usage, providerId, account)
+    return index >= 0 ? root.usage[index] : null
+  }
+
+  function usageIndexOf(providerId, account) {
+    return Model.usageIndexForAccount(root.usage, providerId, account)
+  }
+
   function modelBySlug(providerId, slug) {
     var provider = Model.providerById(dpState, providerId)
     if (!provider) return null
@@ -561,50 +570,6 @@ Panel {
           }
 
           Column {
-            width: parent.width
-            spacing: Style.space(8)
-
-            Text {
-              width: parent.width
-              textFormat: Text.PlainText
-              text: strings.t("factory.title")
-              color: root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.subtitle
-              font.bold: true
-            }
-            Text {
-              width: parent.width
-              textFormat: Text.PlainText
-              wrapMode: Text.WordWrap
-              text: root.modelsInstalled ? strings.t("factory.applied") : strings.t("factory.missing")
-              color: root.modelsInstalled ? root.dim : root.accent
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-            }
-            Text {
-              width: parent.width
-              textFormat: Text.PlainText
-              wrapMode: Text.WordWrap
-              text: strings.t("factory.blurb")
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-            }
-            Button {
-              width: parent.width
-              text: root.justApplied ? strings.t("factory.just") : (root.modelsInstalled ? strings.t("factory.reapply") : strings.t("factory.apply"))
-              active: !root.modelsInstalled && !root.justApplied
-              bordered: true
-              hasCursor: root.hot("factory")
-              foreground: root.foreground
-              fontFamily: root.fontFamily
-              onHovered: function(on) { if (on) root.aim("factory") }
-              onClicked: root.applyFactory()
-            }
-          }
-
-          Column {
             visible: root.pendingSignIn !== null
             width: parent.width
             spacing: Style.space(8)
@@ -667,14 +632,16 @@ Panel {
             }
           }
 
+          PanelSeparator { foreground: root.foreground }
+
           Column {
             width: parent.width
-            spacing: Style.space(10)
+            spacing: Style.space(12)
 
             RowLayout {
               width: parent.width
               PanelSectionHeader {
-                text: strings.t("section.quota")
+                text: strings.t("section.services")
                 foreground: root.foreground
                 fontFamily: root.fontFamily
                 Layout.fillWidth: true
@@ -690,121 +657,53 @@ Panel {
               }
             }
 
-            Text {
-              visible: root.usage.length === 0
-              width: parent.width
-              wrapMode: Text.WordWrap
-              textFormat: Text.PlainText
-              text: strings.t("quota.empty")
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.body
-            }
-
-            Repeater {
-              model: root.usage
-              delegate: Column {
-                id: usageCard
-                required property int index
-                required property var modelData
-                width: column.width
-                spacing: Style.space(6)
-
-                Rectangle {
-                  anchors.fill: parent
-                  radius: Style.cornerRadius
-                  color: root.hot("usage:" + usageCard.index) ? root.hoverFill : "transparent"
-                  z: -1
-                }
-
-                Text {
-                  width: parent.width
-                  textFormat: Text.PlainText
-                  elide: Text.ElideRight
-                  text: modelData.email !== "" ? modelData.email : modelData.providerName
-                  color: root.foreground
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.body
-                  font.bold: true
-                }
-                Text {
-                  visible: modelData.email !== "" && modelData.providerName !== ""
-                  width: parent.width
-                  textFormat: Text.PlainText
-                  text: modelData.providerName
-                  color: root.dim
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.caption
-                }
-                Text {
-                  visible: modelData.error !== ""
-                  width: parent.width
-                  wrapMode: Text.WordWrap
-                  textFormat: Text.PlainText
-                  text: modelData.error
-                  color: root.urgent
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.caption
-                }
-                RowLayout {
-                  visible: usageCard.modelData.resetCount > 0
-                  spacing: Style.space(8)
-                  Text {
-                    Layout.fillWidth: true
-                    textFormat: Text.PlainText
-                    elide: Text.ElideRight
-                    text: strings.t("quota.bankedResets").arg(Commons.I18n.formatNumber(usageCard.modelData.resetCount))
-                    color: root.dim
-                    font.family: root.fontFamily
-                    font.pixelSize: Style.font.caption
-                  }
-                  Button {
-                    text: strings.t("quota.useReset")
-                    bordered: true
-                    hasCursor: root.hot("reset:" + usageCard.index)
-                    foreground: root.foreground
-                    fontFamily: root.fontFamily
-                    onHovered: function(on) { if (on) root.aim("reset:" + usageCard.index) }
-                    onClicked: root.askUseReset(usageCard.modelData)
-                  }
-                }
-                Row {
-                  spacing: Style.space(6)
-                  Repeater {
-                    model: usageCard.modelData.windows
-                    delegate: Gauge {
-                      required property int index
-                      required property var modelData
-                      remaining: modelData.remaining
-                      caption: modelData.title
-                      tip: modelData.resetText !== "" ? modelData.resetText : (modelData.remaining < 0 ? strings.t("quota.unavailable") : "")
-                      ink: root.inkFor(usageCard.modelData.provider, modelData.remaining)
-                      fontFamily: root.fontFamily
-                      hasCursor: root.hot("usage:" + usageCard.index)
-                      confirmed: root.copiedUsageId === String(usageCard.index)
-                      onClicked: root.copyUsage(usageCard.index)
-                    }
-                  }
-                }
-              }
-            }
-          }
-
-          PanelSeparator { foreground: root.foreground }
-
-          Column {
-            width: parent.width
-            spacing: Style.space(12)
-
-            PanelSectionHeader {
-              text: strings.t("section.services")
-              foreground: root.foreground
-              fontFamily: root.fontFamily
-            }
-
             Repeater {
               model: root.providers
               delegate: providerCard
+            }
+          }
+
+          Column {
+            width: parent.width
+            spacing: Style.space(8)
+
+            Text {
+              width: parent.width
+              textFormat: Text.PlainText
+              text: strings.t("factory.title")
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.subtitle
+              font.bold: true
+            }
+            Text {
+              width: parent.width
+              textFormat: Text.PlainText
+              wrapMode: Text.WordWrap
+              text: root.modelsInstalled ? strings.t("factory.applied") : strings.t("factory.missing")
+              color: root.modelsInstalled ? root.dim : root.accent
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+            }
+            Text {
+              width: parent.width
+              textFormat: Text.PlainText
+              wrapMode: Text.WordWrap
+              text: strings.t("factory.blurb")
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+            }
+            Button {
+              width: parent.width
+              text: root.justApplied ? strings.t("factory.just") : (root.modelsInstalled ? strings.t("factory.reapply") : strings.t("factory.apply"))
+              active: !root.modelsInstalled && !root.justApplied
+              bordered: true
+              hasCursor: root.hot("factory")
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onHovered: function(on) { if (on) root.aim("factory") }
+              onClicked: root.applyFactory()
             }
           }
 
@@ -1063,11 +962,24 @@ Panel {
   Component {
     id: providerCard
 
-    Column {
-      id: providerColumn
+    Rectangle {
+      id: providerCardRect
       required property int index
       required property var modelData
       width: parent ? parent.width : 0
+      implicitHeight: providerColumn.implicitHeight + Style.space(24)
+      radius: Math.max(Style.cornerRadius, Style.space(10))
+      color: Style.normalFill
+      border.color: Style.normalBorderColor
+      border.width: 1
+
+    Column {
+      id: providerColumn
+      property var modelData: providerCardRect.modelData
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.top: parent.top
+      anchors.margins: Style.space(12)
       spacing: Style.space(8)
 
       Item {
@@ -1088,9 +1000,14 @@ Panel {
           anchors.margins: Style.space(4)
           spacing: Style.space(10)
 
-          Item {
-            Layout.preferredWidth: Style.space(22)
-            Layout.preferredHeight: Style.space(22)
+          Rectangle {
+            Layout.preferredWidth: Style.space(32)
+            Layout.preferredHeight: Style.space(32)
+            radius: Style.space(8)
+            color: Util.alpha(providerColumn.modelData.color !== "" ? providerColumn.modelData.color : root.foreground, 0.16)
+            Item {
+              anchors.fill: parent
+              anchors.margins: Style.space(6)
             Image {
               id: providerIcon
               anchors.fill: parent
@@ -1117,6 +1034,7 @@ Panel {
               font.pixelSize: Style.font.body
               font.bold: true
             }
+            }
           }
 
           ColumnLayout {
@@ -1134,6 +1052,7 @@ Panel {
             }
             Text {
               Layout.fillWidth: true
+              visible: text !== ""
               textFormat: Text.PlainText
               elide: Text.ElideRight
               color: root.dim
@@ -1144,7 +1063,7 @@ Panel {
                 if (provider.authenticating) return strings.t("provider.signingIn")
                 var count = provider.accounts.length
                 if (count === 0) return strings.t("account.none")
-                if (count === 1) return provider.accounts[0].displayName
+                if (count === 1) return ""
                 return strings.tn("accounts.count", count).arg(Commons.I18n.formatNumber(count))
               }
             }
@@ -1169,7 +1088,7 @@ Panel {
       Text {
         visible: providerColumn.modelData.enabled && providerColumn.modelData.help !== ""
         width: parent.width
-        leftPadding: Style.space(32)
+        leftPadding: Style.space(42)
         wrapMode: Text.WordWrap
         textFormat: Text.PlainText
         text: providerColumn.modelData.help
@@ -1178,18 +1097,37 @@ Panel {
         font.pixelSize: Style.font.caption
       }
 
+      Text {
+        visible: providerColumn.modelData.enabled && providerColumn.modelData.accounts.length > 0
+        width: parent.width
+        leftPadding: Style.space(42)
+        textFormat: Text.PlainText
+        text: strings.t("section.accounts").toUpperCase()
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        font.bold: true
+        font.letterSpacing: 1.2
+      }
+
       Repeater {
         model: providerColumn.modelData.enabled ? providerColumn.modelData.accounts : []
-        delegate: RowLayout {
+        delegate: Column {
           id: accountRow
           required property int index
           required property var modelData
+          property var usageEntry: root.usageForAccount(providerColumn.modelData.id, modelData)
+          property int usageIndex: root.usageIndexOf(providerColumn.modelData.id, modelData)
           width: providerColumn.width
+          spacing: Style.space(4)
+
+        RowLayout {
+          width: parent.width
           spacing: Style.space(8)
 
           Item {
             Layout.fillWidth: true
-            Layout.leftMargin: Style.space(32)
+            Layout.leftMargin: Style.space(42)
             Layout.preferredHeight: accountLabel.implicitHeight + Style.space(8)
 
             Rectangle {
@@ -1244,12 +1182,107 @@ Panel {
           }
 
           Button {
+            visible: root.hot("account:" + providerColumn.modelData.id + ":" + accountRow.modelData.id)
             text: strings.t("account.remove")
             foreground: root.foreground
             fontFamily: root.fontFamily
             onClicked: root.askRemove(providerColumn.modelData.id, accountRow.modelData)
           }
         }
+
+        Column {
+          visible: accountRow.usageEntry !== null
+          width: parent.width
+          leftPadding: Style.space(42)
+          spacing: Style.space(6)
+
+          Text {
+            visible: accountRow.usageEntry !== null && accountRow.usageEntry.error !== ""
+            width: parent.width - Style.space(42)
+            wrapMode: Text.WordWrap
+            textFormat: Text.PlainText
+            text: accountRow.usageEntry ? accountRow.usageEntry.error : ""
+            color: root.urgent
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+          }
+          RowLayout {
+            visible: accountRow.usageEntry !== null && accountRow.usageEntry.resetCount > 0
+            spacing: Style.space(8)
+            Rectangle {
+              radius: height / 2
+              color: Style.selectedAccentFill
+              implicitWidth: resetLabel.implicitWidth + Style.space(16)
+              implicitHeight: resetLabel.implicitHeight + Style.space(6)
+              Text {
+                id: resetLabel
+                anchors.centerIn: parent
+                textFormat: Text.PlainText
+                text: accountRow.usageEntry ? strings.t("quota.bankedResets").arg(Commons.I18n.formatNumber(accountRow.usageEntry.resetCount)) : ""
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+              }
+            }
+            Button {
+              text: strings.t("quota.useReset")
+              bordered: true
+              hasCursor: root.hot("reset:" + accountRow.usageIndex)
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onHovered: function(on) { if (on) root.aim("reset:" + accountRow.usageIndex) }
+              onClicked: root.askUseReset(accountRow.usageEntry)
+            }
+          }
+          Row {
+            spacing: Style.space(6)
+            Repeater {
+              model: accountRow.usageEntry ? accountRow.usageEntry.windows : []
+              delegate: Gauge {
+                required property int index
+                required property var modelData
+                remaining: modelData.remaining
+                caption: modelData.title
+                tip: modelData.resetText !== "" ? modelData.resetText : (modelData.remaining < 0 ? strings.t("quota.unavailable") : "")
+                ink: root.inkFor(providerColumn.modelData.id, modelData.remaining)
+                fontFamily: root.fontFamily
+                hasCursor: root.hot("usage:" + accountRow.usageIndex)
+                confirmed: root.copiedUsageId === String(accountRow.usageIndex)
+                onClicked: root.copyUsage(accountRow.usageIndex)
+              }
+            }
+          }
+        }
+        }
+      }
+
+      Button {
+        visible: providerColumn.modelData.enabled && providerColumn.modelData.id !== "junie"
+        text: root.providerBusy(providerColumn.modelData.id) ? strings.t("auth.cancelSignIn") : strings.t("account.add")
+        bordered: true
+        hasCursor: root.hot("connect:" + providerColumn.modelData.id)
+        foreground: root.foreground
+        fontFamily: root.fontFamily
+        onHovered: function(on) { if (on) root.aim("connect:" + providerColumn.modelData.id) }
+        onClicked: {
+          var id = providerColumn.modelData.id
+          if (root.providerBusy(id)) root.cancelProvider(id)
+          else root.connectProvider(id)
+        }
+      }
+
+      Text {
+        visible: providerColumn.modelData.enabled && providerColumn.modelData.models.length > 0
+        width: parent.width
+        leftPadding: Style.space(42)
+        textFormat: Text.PlainText
+        text: strings.t("section.models").toUpperCase()
+        color: root.dim
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.caption
+        font.bold: true
+        font.letterSpacing: 1.2
       }
 
       Repeater {
@@ -1263,7 +1296,7 @@ Panel {
 
           Item {
             Layout.fillWidth: true
-            Layout.leftMargin: Style.space(32)
+            Layout.leftMargin: Style.space(42)
             Layout.preferredHeight: modelLabel.implicitHeight + Style.space(8)
 
             Rectangle {
@@ -1289,12 +1322,29 @@ Panel {
                 font.pixelSize: Style.font.body
               }
               Text {
+                visible: !modelRow.modelData.installed
                 width: parent.width
                 textFormat: Text.PlainText
-                text: modelRow.modelData.installed ? strings.t("model.inFactory") : strings.t("model.notInFactory")
+                text: strings.t("model.notInFactory")
                 color: root.dim
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
+              }
+              Rectangle {
+                visible: modelRow.modelData.installed
+                radius: height / 2
+                color: Style.selectedAccentFill
+                implicitWidth: inFactoryLabel.implicitWidth + Style.space(12)
+                implicitHeight: inFactoryLabel.implicitHeight + Style.space(4)
+                Text {
+                  id: inFactoryLabel
+                  anchors.centerIn: parent
+                  textFormat: Text.PlainText
+                  text: strings.t("model.inFactory")
+                  color: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
               }
             }
 
@@ -1317,27 +1367,12 @@ Panel {
           }
 
           Button {
-            visible: modelRow.modelData.installed
+            visible: modelRow.modelData.installed && root.hot("model:" + modelRow.modelData.slug)
             text: strings.t("account.remove")
             foreground: root.foreground
             fontFamily: root.fontFamily
             onClicked: root.askRemoveModel(modelRow.modelData)
           }
-        }
-      }
-
-      Button {
-        visible: providerColumn.modelData.enabled && providerColumn.modelData.id !== "junie"
-        text: root.providerBusy(providerColumn.modelData.id) ? strings.t("auth.cancelSignIn") : strings.t("account.add")
-        bordered: true
-        hasCursor: root.hot("connect:" + providerColumn.modelData.id)
-        foreground: root.foreground
-        fontFamily: root.fontFamily
-        onHovered: function(on) { if (on) root.aim("connect:" + providerColumn.modelData.id) }
-        onClicked: {
-          var id = providerColumn.modelData.id
-          if (root.providerBusy(id)) root.cancelProvider(id)
-          else root.connectProvider(id)
         }
       }
 
@@ -1456,6 +1491,7 @@ Panel {
         onHovered: function(on) { if (on) root.aim("contributor") }
         onClicked: root.toggleSetting("metaContributorMode")
       }
+    }
     }
   }
 }
