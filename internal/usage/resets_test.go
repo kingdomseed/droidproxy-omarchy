@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -107,5 +108,47 @@ func TestRedeemClaudeResetPostsGrantClaim(t *testing.T) {
 	}
 	if claim["program"] != "cedar_ember" || claim["grant_id"] != "g1" || claim["request_id"] == "" {
 		t.Fatalf("claim body = %+v", claim)
+	}
+}
+
+func TestRedeemResetInvalidatesCachedUsage(t *testing.T) {
+	usageHits := 0
+	mux := http.NewServeMux()
+	mux.HandleFunc("/wham/usage", func(w http.ResponseWriter, r *http.Request) {
+		usageHits++
+		used := 90
+		if usageHits > 1 {
+			used = 10
+		}
+		_, _ = w.Write([]byte(`{"rate_limit":{"primary_window":{"used_percent":` + strconv.Itoa(used) + `,"limit_window_seconds":18000},"secondary_window":{"used_percent":50,"limit_window_seconds":604800}}}`))
+	})
+	mux.HandleFunc("/wham/rate-limit-reset-credits", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"credits":[{"id":"c1","status":"available","reset_type":"codex_rate_limits","expires_at":"2999-01-01T00:00:00Z"}]}`))
+	})
+	mux.HandleFunc("/wham/rate-limit-reset-credits/consume", func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"code":"reset"}`))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	t.Setenv("HOME", t.TempDir())
+	tracker := NewTracker()
+	tracker.SetBaseURLs(srv.URL+"/wham/usage", "", "")
+	path := writeAuthFile(t, map[string]any{"access_token": "tok", "account_id": "acct-1"})
+	account := auth.Account{ID: "codex.json", Type: auth.Codex, FilePath: path}
+
+	first := tracker.fetch([]auth.Account{account})
+	if len(first) != 1 || first[0].Error != "" || usageHits != 1 {
+		t.Fatalf("first fetch = %+v, hits = %d", first, usageHits)
+	}
+	if message, ok := tracker.RedeemReset(account); !ok {
+		t.Fatalf("redeem failed: %s", message)
+	}
+	second := tracker.fetch([]auth.Account{account})
+	if usageHits != 2 {
+		t.Fatalf("usage hits = %d, want a refetch after redemption despite the polling budget", usageHits)
+	}
+	if len(second) != 1 || len(second[0].Windows) == 0 || second[0].Windows[0].UsedPercent == nil || *second[0].Windows[0].UsedPercent != 10 {
+		t.Fatalf("second fetch = %+v, want post-reset sample", second)
 	}
 }

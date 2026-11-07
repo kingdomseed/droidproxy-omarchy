@@ -246,7 +246,14 @@ func (t *Tracker) UpdateMetaAccounts(metaAccounts []auth.Account) {
 	var fresh []AccountUsage
 	for _, a := range metaAccounts {
 		if !a.Disabled {
-			fresh = append(fresh, t.storedMetaUsage(a))
+			usage := t.storedMetaUsage(a)
+			if usage.Error == "" {
+				// Keep the polling cache in step with the live sample so
+				// endpoint reads and the next refresh cannot resurrect
+				// the older one.
+				t.cache.recordObserved(a, usage)
+			}
+			fresh = append(fresh, usage)
 		}
 	}
 	t.mu.Lock()

@@ -192,14 +192,22 @@ func parseClaudeResetCredits(data []byte, now time.Time) *ResetCredits {
 // user-facing message. It never runs on its own; callers gate it behind an
 // explicit user confirmation.
 func (t *Tracker) RedeemReset(account auth.Account) (string, bool) {
+	var message string
+	var ok bool
 	switch account.Type {
 	case auth.Codex:
-		return t.redeemCodexReset(account)
+		message, ok = t.redeemCodexReset(account)
 	case auth.Claude:
-		return t.redeemClaudeReset(account)
+		message, ok = t.redeemClaudeReset(account)
 	default:
 		return "Banked resets are only available for Codex and Claude accounts.", false
 	}
+	if ok {
+		// Quota and credit counts just changed provider-side; the next
+		// read must not serve the pre-reset sample.
+		t.cache.invalidate(account)
+	}
+	return message, ok
 }
 
 func (t *Tracker) redeemCodexReset(account auth.Account) (string, bool) {

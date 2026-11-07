@@ -79,15 +79,54 @@ func newUsageCache(path string, now func() time.Time, jitter func() time.Duratio
 	return c
 }
 
+// keyFor is the budget key for an account. Meta accounts share one
+// accounts.json, so their budget keys on the account id. File-based
+// providers have one account per credential file.
+func (c *usageCache) keyFor(account auth.Account) string {
+	if account.Type == auth.Meta {
+		return string(account.Type) + ":" + account.ID
+	}
+	return string(account.Type) + ":" + filepath.Clean(account.FilePath)
+}
+
+// invalidate makes the next read refetch instead of serving the cached
+// sample. Used after a banked reset is spent: quota and credit counts
+// changed provider-side, so the cached sample is wrong now. Backoff
+// state is kept.
+func (c *usageCache) invalidate(account auth.Account) {
+	c.mu.Lock()
+	if entry, ok := c.entries[c.keyFor(account)]; ok {
+		entry.NextAttemptAt = time.Time{}
+		c.persistLocked()
+	}
+	c.mu.Unlock()
+}
+
+// recordObserved rewrites the cached sample from a local observation
+// (a Meta snapshot sniffed from live traffic) without touching the
+// polling budget: reads see the fresh sample, probes stay throttled.
+func (c *usageCache) recordObserved(account auth.Account, usage AccountUsage) {
+	key := c.keyFor(account)
+	c.mu.Lock()
+	entry, ok := c.entries[key]
+	if !ok {
+		entry = &cacheEntry{}
+		c.entries[key] = entry
+	}
+	entry.Error = usage.Error
+	entry.UpdatedAt = usage.UpdatedAt
+	entry.Windows = nil
+	for _, w := range usage.Windows {
+		entry.Windows = append(entry.Windows, cacheWindow{Title: w.Title, UsedPercent: w.UsedPercent, ResetText: w.ResetText, ResetDate: w.ResetDate, LengthSeconds: w.LengthSeconds})
+	}
+	c.persistLocked()
+	c.mu.Unlock()
+}
+
 // usage returns the cached sample while the account's budget is spent, and
 // otherwise runs fetch once for all concurrent callers.
 func (c *usageCache) usage(account auth.Account, fetch func() AccountUsage) AccountUsage {
-	// Meta accounts share one accounts.json, so their budget keys on the
-	// account id. File-based providers have one account per credential file.
-	key := string(account.Type) + ":" + filepath.Clean(account.FilePath)
-	if account.Type == auth.Meta {
-		key = string(account.Type) + ":" + account.ID
-	}
+	key := c.keyFor(account)
 	c.mu.Lock()
 	if flight, ok := c.inFlight[key]; ok {
 		c.mu.Unlock()

@@ -642,6 +642,39 @@ func TestUpdateMetaAccountsOnlyTouchesMeta(t *testing.T) {
 	}
 }
 
+func TestUpdateMetaAccountsReconcilesCachedSample(t *testing.T) {
+	snapshot := &meta.UsageSnapshot{
+		WindowUsedPercent: 10, WindowResetsAt: time.Now().Add(time.Hour), WindowDurationMins: 300,
+		WeeklyUsedPercent: 20, WeeklyResetsAt: time.Now().Add(24 * time.Hour), ObservedAt: time.Now(),
+	}
+	probes := 0
+	t.Setenv("HOME", t.TempDir())
+	tracker := NewTracker()
+	tracker.SetMetaSnapshots(func(string) *meta.UsageSnapshot { return snapshot })
+	tracker.SetMetaProbe(func(string) { probes++ })
+	account := auth.Account{ID: "m1", Email: "m@x.com", Type: auth.Meta}
+
+	first := tracker.fetch([]auth.Account{account})
+	if len(first) != 1 || first[0].Error != "" || probes != 1 {
+		t.Fatalf("first fetch = %+v, probes = %d", first, probes)
+	}
+
+	// Live traffic observes a much newer sample inside the cache interval.
+	snapshot = &meta.UsageSnapshot{
+		WindowUsedPercent: 90, WindowResetsAt: time.Now().Add(time.Hour), WindowDurationMins: 300,
+		WeeklyUsedPercent: 80, WeeklyResetsAt: time.Now().Add(24 * time.Hour), ObservedAt: time.Now(),
+	}
+	tracker.UpdateMetaAccounts([]auth.Account{account})
+
+	second := tracker.fetch([]auth.Account{account})
+	if len(second) != 1 || len(second[0].Windows) == 0 || second[0].Windows[0].UsedPercent == nil || *second[0].Windows[0].UsedPercent != 90 {
+		t.Fatalf("second fetch = %+v, want the live 90%% sample, not the cached 10%%", second)
+	}
+	if probes != 1 {
+		t.Fatalf("probes = %d, want the probe budget untouched by reconciliation", probes)
+	}
+}
+
 func TestHasShortWindowFollowsTheAccountPayload(t *testing.T) {
 	claude := func(payload string) AccountUsage {
 		return AccountUsage{Windows: ParseClaudeWindows([]byte(payload))}
