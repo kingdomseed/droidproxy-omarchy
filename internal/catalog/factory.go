@@ -102,6 +102,35 @@ func objectArray(v any) ([]map[string]any, bool) {
 	return out, true
 }
 
+// InstalledFactoryModelIDs returns the SimpleIDs of DroidProxy entries
+// currently in ~/.factory/settings.json (empty when unreadable).
+func InstalledFactoryModelIDs() map[string]bool {
+	installed := map[string]bool{}
+	data, err := os.ReadFile(paths.FactorySettingsPath())
+	if err != nil {
+		return installed
+	}
+	v, err := decodeJSON(data)
+	if err != nil {
+		return installed
+	}
+	obj, ok := v.(map[string]any)
+	if !ok {
+		return installed
+	}
+	models, ok := objectArray(obj["customModels"])
+	if !ok {
+		return installed
+	}
+	current := AllSettingsIDs()
+	for _, m := range models {
+		if id, ok := m["id"].(string); ok && isDroidProxyID(id, current) {
+			installed[id] = true
+		}
+	}
+	return installed
+}
+
 // CheckFactoryModelsInstalled reports whether ~/.factory/settings.json holds
 // exactly the DroidProxy models that would be written for the currently
 // enabled providers (no missing, stale, or legacy DroidProxy entries).

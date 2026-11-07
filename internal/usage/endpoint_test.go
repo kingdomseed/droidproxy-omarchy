@@ -67,6 +67,10 @@ func TestEndpointJSONReportsRemainingPercentAndSecondsUntilReset(t *testing.T) {
 func TestServeEndpointFiltersAccountsAndListsAvailableOnes(t *testing.T) {
 	var calls atomic.Int32
 	env := newTestEnv(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/rate-limit-reset-credits") {
+			_, _ = w.Write([]byte(`{"credits":[]}`))
+			return
+		}
 		calls.Add(1)
 		_, _ = w.Write([]byte(`{"rate_limit":{"primary_window":{"used_percent":10}}}`))
 	}, nil, nil)

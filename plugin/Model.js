@@ -50,6 +50,20 @@ function providerList(state) {
         disabled: account.disabled === true
       })
     }
+    var rawModels = Array.isArray(provider.models) ? provider.models : []
+    var models = []
+    var modelLimit = Math.min(rawModels.length, 32)
+    for (var m = 0; m < modelLimit; m++) {
+      var model = rawModels[m] || {}
+      var slug = clip(model.slug || "", 80)
+      if (!/^[a-z0-9][a-z0-9._-]*$/.test(slug)) continue
+      models.push({
+        slug: slug,
+        displayName: clip(model.displayName || slug, 80),
+        enabled: model.enabled === true,
+        installed: model.installed === true
+      })
+    }
     out.push({
       id: id,
       name: clip(provider.name || id, 60),
@@ -58,7 +72,8 @@ function providerList(state) {
       enabled: provider.enabled === true,
       authenticating: provider.authenticating === true,
       help: clip(provider.help, 240),
-      accounts: accounts
+      accounts: accounts,
+      models: models
     })
   }
   return out
@@ -91,6 +106,7 @@ function usageAccounts(state) {
       })
     }
     var id = clip(account.id || account.email || "", 160)
+    var credits = account.resetCredits || null
     out.push({
       provider: clip(account.provider, 40),
       providerName: clip(account.providerName || account.provider || "", 40),
@@ -98,30 +114,17 @@ function usageAccounts(state) {
       id: id,
       error: clip(account.error, 160),
       loading: account.loading === true,
-      windows: windows
+      windows: windows,
+      resetCount: credits && isFinite(Number(credits.availableCount)) ? Math.max(0, Math.floor(Number(credits.availableCount))) : 0,
+      resetExpires: credits ? clip(credits.nextExpiresAt || "", 40) : ""
     })
   }
   return out
 }
 
-function quotaSummary(account) {
-  var name = account.providerName || account.provider || "Account"
-  var who = account.email || account.id || ""
-  var parts = []
-  var windows = account.windows || []
-  for (var i = 0; i < windows.length; i++) {
-    var item = windows[i]
-    var title = item.title || "Window"
-    if (item.remaining < 0) parts.push(title + ": unavailable")
-    else parts.push(title + ": " + Math.round(item.remaining) + "% left" + (item.resetText ? " (" + item.resetText + ")" : ""))
-  }
-  return name + (who ? " " + who : "") + (parts.length ? " — " + parts.join("; ") : "")
-}
-
 var fastModeCatalog = [
   { key: "gpt6AstraFastMode", label: "GPT 6 Astra" },
   { key: "gpt61SolFastMode", label: "GPT 6.1 Sol" },
-  { key: "gpt6SolFastMode", label: "GPT 6 Sol" },
   { key: "gpt61TerraFastMode", label: "GPT 6.1 Terra" },
   { key: "gpt6LunaFastMode", label: "GPT 6 Luna" }
 ]
@@ -148,20 +151,10 @@ function primer(state, id) {
   if (!settings || !/^[a-z0-9-]+$/.test(id)) return null
   var enabledKey = "windowPrimerEnabled." + id
   var minutesKey = "windowPrimerMinutes." + id
-  if (typeof settings[enabledKey] === "boolean") {
-    return {
-      enabled: settings[enabledKey],
-      minutes: numberOr(settings[minutesKey], 420),
-      enabledKey: enabledKey,
-      minutesKey: minutesKey
-    }
-  }
-  var enabledMap = settings.windowPrimerEnabled
-  if (!enabledMap || typeof enabledMap !== "object" || typeof enabledMap[id] !== "boolean") return null
-  var minutesMap = settings.windowPrimerMinutes
+  if (typeof settings[enabledKey] !== "boolean") return null
   return {
-    enabled: enabledMap[id],
-    minutes: numberOr(minutesMap && minutesMap[id], 420),
+    enabled: settings[enabledKey],
+    minutes: numberOr(settings[minutesKey], 420),
     enabledKey: enabledKey,
     minutesKey: minutesKey
   }
@@ -236,7 +229,10 @@ function cursorEntries(state, ui) {
 
   var usage = usageAccounts(state)
   if (usage.length > 0) add({ id: "refresh", kind: "refresh" })
-  for (var u = 0; u < usage.length; u++) add({ id: "usage:" + u, kind: "usage", index: u })
+  for (var u = 0; u < usage.length; u++) {
+    add({ id: "usage:" + u, kind: "usage", index: u })
+    if (usage[u].resetCount > 0) add({ id: "reset:" + u, kind: "reset", index: u })
+  }
 
   var providers = providerList(state)
   for (var p = 0; p < providers.length; p++) {
@@ -250,6 +246,14 @@ function cursorEntries(state, ui) {
         kind: "account",
         provider: provider.id,
         accountId: account.id
+      })
+    }
+    for (var mo = 0; mo < provider.models.length; mo++) {
+      add({
+        id: "model:" + provider.models[mo].slug,
+        kind: "model",
+        provider: provider.id,
+        slug: provider.models[mo].slug
       })
     }
     if (provider.id === "junie") add({ id: "junie", kind: "junie" })

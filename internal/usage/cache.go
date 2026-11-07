@@ -37,6 +37,9 @@ type cacheEntry struct {
 	UpdatedAt         *time.Time    `json:"updatedAt,omitempty"`
 	NextAttemptAt     time.Time     `json:"nextAttemptAt"`
 	RateLimitFailures int           `json:"rateLimitFailures"`
+	ResetCount        int           `json:"resetCount,omitempty"`
+	ResetNextID       string        `json:"resetNextId,omitempty"`
+	ResetNextExpiry   *time.Time    `json:"resetNextExpiry,omitempty"`
 }
 
 type cacheWindow struct {
@@ -135,6 +138,7 @@ func (c *usageCache) finishLocked(key string, account auth.Account, result Accou
 		kept := previous.toUsage(account)
 		usage.Windows = kept.Windows
 		usage.UpdatedAt = kept.UpdatedAt
+		usage.ResetCredits = kept.ResetCredits
 	}
 
 	failures := 0
@@ -166,6 +170,11 @@ func (c *usageCache) finishLocked(key string, account auth.Account, result Accou
 	for _, w := range usage.Windows {
 		entry.Windows = append(entry.Windows, cacheWindow{Title: w.Title, UsedPercent: w.UsedPercent, ResetText: w.ResetText, ResetDate: w.ResetDate})
 	}
+	if usage.ResetCredits != nil {
+		entry.ResetCount = usage.ResetCredits.AvailableCount
+		entry.ResetNextID = usage.ResetCredits.NextCreditID
+		entry.ResetNextExpiry = usage.ResetCredits.NextExpiresAt
+	}
 	c.entries[key] = entry
 	return usage
 }
@@ -181,6 +190,9 @@ func (e *cacheEntry) toUsage(account auth.Account) AccountUsage {
 	}
 	for _, w := range e.Windows {
 		usage.Windows = append(usage.Windows, newWindow(w.Title, w.UsedPercent, w.ResetText, w.ResetDate))
+	}
+	if e.ResetCount > 0 {
+		usage.ResetCredits = &ResetCredits{AvailableCount: e.ResetCount, NextCreditID: e.ResetNextID, NextExpiresAt: e.ResetNextExpiry}
 	}
 	return usage
 }

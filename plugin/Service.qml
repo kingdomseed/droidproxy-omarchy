@@ -111,23 +111,11 @@ Item {
     Util.execArgv(["systemctl", "--user", "start", "droidproxy.service"])
   }
 
-  // The released daemon has no usage.copyCurl. Fall back to a plain quota
-  // summary so a click still copies something useful.
-  function copyUsage(account, curlText, summaryText) {
+  function copyUsage(account, curlText) {
     var accountId = account && (account.id || account.email) || ""
     root.call("usage.copyCurl", { provider: account.provider, accountId: accountId }, function(result) {
-      if (result.ok) {
-        root.showNotice(curlText)
-        return
-      }
-      var err = String(result.error || "")
-      if (err.indexOf("Unknown method") === 0) {
-        root.call("clipboard.copy", { text: Model.quotaSummary(account) }, function(copyResult) {
-          root.showNotice(copyResult.ok ? summaryText : (copyResult.error || summaryText))
-        })
-        return
-      }
-      root.showNotice(err)
+      if (result.ok) root.showNotice(curlText)
+      else if (result.error) root.showNotice(result.error)
     })
   }
 

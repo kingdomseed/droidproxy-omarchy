@@ -353,14 +353,38 @@ func Definitions() []ModelDefinition {
 	return list
 }
 
-// SettingsModels returns the Factory entries for every definition whose
-// providerKey passes providerIsEnabled. A nil filter includes everything.
-func SettingsModels(providerIsEnabled func(providerKey string) bool) []map[string]any {
-	var out []map[string]any
+// EnabledDefinitions is the single seam where provider and per-model
+// enablement resolve: a definition is in when its provider passes
+// providerIsEnabled (nil includes every provider) and the model itself is
+// enabled in prefs.
+func EnabledDefinitions(providerIsEnabled func(providerKey string) bool) []ModelDefinition {
+	var out []ModelDefinition
 	for _, d := range Definitions() {
 		if providerIsEnabled != nil && !providerIsEnabled(d.ProviderKey) {
 			continue
 		}
+		if !prefs.IsModelEnabled(d.IDSlug) {
+			continue
+		}
+		out = append(out, d)
+	}
+	return out
+}
+
+// FindDefinition returns the definition with this ID slug, if one exists.
+func FindDefinition(slug string) (ModelDefinition, bool) {
+	for _, d := range Definitions() {
+		if d.IDSlug == slug {
+			return d, true
+		}
+	}
+	return ModelDefinition{}, false
+}
+
+// SettingsModels returns the Factory entries for the enabled definitions.
+func SettingsModels(providerIsEnabled func(providerKey string) bool) []map[string]any {
+	var out []map[string]any
+	for _, d := range EnabledDefinitions(providerIsEnabled) {
 		out = append(out, d.SettingsEntry())
 	}
 	return out

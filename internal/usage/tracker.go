@@ -377,7 +377,11 @@ func (t *Tracker) fetchCodexUsage(account auth.Account) AccountUsage {
 		request.Header.Set("ChatGPT-Account-Id", accountID)
 	}
 
-	return t.fetchJSONUsage(account, client, request, parseCodexWindows)
+	usage := t.fetchJSONUsage(account, client, request, parseCodexWindows)
+	if usage.Error == "" {
+		usage.ResetCredits = t.fetchCodexResetCredits(account)
+	}
+	return usage
 }
 
 func (t *Tracker) fetchJSONUsage(account auth.Account, client *http.Client, request *http.Request, parse func(any) []Window) AccountUsage {
@@ -521,7 +525,7 @@ func (t *Tracker) executeClaudeUsageRequest(account auth.Account, client *http.C
 	if len(windows) == 0 {
 		return failedAccount(account, "Usage response did not include quota windows")
 	}
-	return successAccount(account, windows)
+	return claudeSuccess(account, data, windows)
 }
 
 func (t *Tracker) retryClaudeUsageAfterRefresh(account auth.Account, client *http.Client, endpoint string) AccountUsage {
@@ -543,10 +547,18 @@ func (t *Tracker) retryClaudeUsageAfterRefresh(account auth.Account, client *htt
 	if len(windows) == 0 {
 		return failedAccount(account, "Usage response did not include quota windows")
 	}
-	return successAccount(account, windows)
+	return claudeSuccess(account, data, windows)
 }
 
 func makeClaudeUsageRequest(endpoint, token string) *http.Request {
+	// cedar_ember=1 asks the usage payload to include banked-reset grants.
+	if parsed, err := url.Parse(endpoint); err == nil {
+		query := parsed.Query()
+		query.Set("cedar_ember", "1")
+		query.Set("skip_spend", "1")
+		parsed.RawQuery = query.Encode()
+		endpoint = parsed.String()
+	}
 	request, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil
@@ -554,6 +566,12 @@ func makeClaudeUsageRequest(endpoint, token string) *http.Request {
 	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("anthropic-beta", "oauth-2025-04-20")
 	return request
+}
+
+func claudeSuccess(account auth.Account, data []byte, windows []Window) AccountUsage {
+	usage := successAccount(account, windows)
+	usage.ResetCredits = parseClaudeResetCredits(data, time.Now())
+	return usage
 }
 
 // refreshClaudeTokens refreshes the OAuth tokens for an auth file, rewrites

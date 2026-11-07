@@ -35,6 +35,8 @@ type AccountUsage struct {
 	// RateLimited (HTTP 429) and RetryAfter drive the polling cache backoff.
 	RateLimited bool       `json:"-"`
 	RetryAfter  *time.Time `json:"-"`
+	// ResetCredits is the banked-reset state (Codex and Claude only).
+	ResetCredits *ResetCredits `json:"-"`
 }
 
 // newWindow builds a Window from a used percentage, computing the

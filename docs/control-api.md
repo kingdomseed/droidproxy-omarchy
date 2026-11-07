@@ -122,6 +122,14 @@ All keys are always present. Strings are never `null`; use `""`.
           "expired": false,
           "disabled": false
         }
+      ],
+      "models": [                  // catalog models for this provider
+        {
+          "slug": "fable-5-1",     // catalog ID slug (model.setEnabled key)
+          "displayName": "Fable 5.1",
+          "enabled": true,         // desired state (missing prefs = enabled)
+          "installed": true        // its custom:droidproxy: entry is in the Factory config
+        }
       ]
     }
     // codex, meta, antigravity, kimi, junie, grok
@@ -151,7 +159,8 @@ All keys are always present. Strings are never `null`; use `""`.
         "windows": [
           { "title": "5-hour", "remainingPercent": 72.5, "hasRemaining": true, "resetText": "Resets in 2h 10m" }
         ],
-        "updatedAt": "2026-09-26T01:00:00Z"   // last fetch; Meta cards carry the last-observed time ("as of")
+        "updatedAt": "2026-09-26T01:00:00Z",   // last fetch; Meta cards carry the last-observed time ("as of")
+        "resetCredits": { "availableCount": 1, "nextExpiresAt": "2026-10-26T01:00:00Z" }  // banked resets (Codex and Claude only; omitted when none)
       }
     ]
   },

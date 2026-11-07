@@ -251,6 +251,10 @@ func waitFor(t *testing.T, condition func() bool) {
 func TestRefreshFetchesCodexUsageAndSortsResults(t *testing.T) {
 	requestHeaders := make(chan *http.Request, 1)
 	env := newTestEnv(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/rate-limit-reset-credits") {
+			_, _ = w.Write([]byte(`{"credits":[]}`))
+			return
+		}
 		requestHeaders <- r
 		if r.Header.Get("Authorization") != "Bearer codex-token" ||
 			r.Header.Get("User-Agent") != "codex-cli" ||

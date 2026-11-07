@@ -169,15 +169,6 @@ func (s *Store) String(key string, def string) string {
 	return def
 }
 
-// Float returns key as a float64, or def when unset.
-func (s *Store) Float(key string, def float64) float64 {
-	var v float64
-	if s.Get(key, &v) {
-		return v
-	}
-	return def
-}
-
 // StringSlice returns key as a []string, or nil when unset.
 func (s *Store) StringSlice(key string) []string {
 	var v []string
@@ -239,6 +230,30 @@ func SetProviderEnabled(provider string, enabled bool) error {
 	m := EnabledProviders()
 	m[provider] = enabled
 	return Shared().Set(KeyEnabledProviders, m)
+}
+
+// EnabledModels returns the per-model enabled map, keyed by catalog ID slug
+// (missing = enabled).
+func EnabledModels() map[string]bool {
+	m := map[string]bool{}
+	Shared().Get(KeyEnabledModels, &m)
+	return m
+}
+
+// IsModelEnabled reports whether the catalog model with this ID slug is
+// enabled. Models default to enabled.
+func IsModelEnabled(slug string) bool {
+	if v, ok := EnabledModels()[slug]; ok {
+		return v
+	}
+	return true
+}
+
+// SetModelEnabled persists the enabled state for one catalog model.
+func SetModelEnabled(slug string, enabled bool) error {
+	m := EnabledModels()
+	m[slug] = enabled
+	return Shared().Set(KeyEnabledModels, m)
 }
 
 // DefaultWindowPrimerMinutes is 07:00, in minutes after local midnight.

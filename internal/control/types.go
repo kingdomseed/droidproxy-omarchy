@@ -96,6 +96,16 @@ type ProviderState struct {
 	Authenticating bool           `json:"authenticating"`
 	Help           string         `json:"help"`
 	Accounts       []AccountState `json:"accounts"`
+	Models         []ModelState   `json:"models"`
+}
+
+// ModelState is one catalog model row: desired state (Enabled) and whether
+// its DroidProxy entry is currently written to the Factory config.
+type ModelState struct {
+	Slug        string `json:"slug"`
+	DisplayName string `json:"displayName"`
+	Enabled     bool   `json:"enabled"`
+	Installed   bool   `json:"installed"`
 }
 
 type AccountState struct {
@@ -164,6 +174,15 @@ type UsageAccount struct {
 	// UpdatedAt is the last successful fetch (RFC 3339), or "" when never
 	// fetched. Meta cards carry the last-observed time instead ("as of").
 	UpdatedAt string `json:"updatedAt"`
+	// ResetCredits is present when the account holds banked usage resets.
+	ResetCredits *UsageResetCredits `json:"resetCredits,omitempty"`
+}
+
+// UsageResetCredits is the banked-reset summary shown next to a quota
+// gauge. The credit id itself never leaves the daemon.
+type UsageResetCredits struct {
+	AvailableCount int    `json:"availableCount"`
+	NextExpiresAt  string `json:"nextExpiresAt,omitempty"`
 }
 
 type UsageWindow struct {

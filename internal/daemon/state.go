@@ -68,6 +68,7 @@ func (d *Daemon) State() control.State {
 
 	metaState := d.metaAuth.State()
 
+	installedIDs := d.factoryInstalledIDs()
 	providers := make([]control.ProviderState, 0, len(providerOrder))
 	for _, p := range providerOrder {
 		st := control.ProviderState{
@@ -100,6 +101,17 @@ func (d *Daemon) State() control.State {
 				Disabled:    a.Disabled,
 			})
 		}
+		for _, def := range catalog.Definitions() {
+			if def.ProviderKey != string(p.serviceType) {
+				continue
+			}
+			st.Models = append(st.Models, control.ModelState{
+				Slug:        def.IDSlug,
+				DisplayName: def.DisplayName,
+				Enabled:     prefs.IsModelEnabled(def.IDSlug),
+				Installed:   installedIDs[def.SimpleID()],
+			})
+		}
 		providers = append(providers, st)
 	}
 
@@ -122,7 +134,7 @@ func (d *Daemon) State() control.State {
 		if a.UpdatedAt != nil {
 			updatedAt = a.UpdatedAt.Format(time.RFC3339)
 		}
-		usageRows = append(usageRows, control.UsageAccount{
+		row := control.UsageAccount{
 			ID:           a.ID,
 			Provider:     a.Provider,
 			ProviderName: a.ProviderName,
@@ -131,7 +143,15 @@ func (d *Daemon) State() control.State {
 			Error:        a.Error,
 			Windows:      windows,
 			UpdatedAt:    updatedAt,
-		})
+		}
+		if a.ResetCredits != nil && a.ResetCredits.AvailableCount > 0 {
+			credits := &control.UsageResetCredits{AvailableCount: a.ResetCredits.AvailableCount}
+			if a.ResetCredits.NextExpiresAt != nil {
+				credits.NextExpiresAt = a.ResetCredits.NextExpiresAt.Format(time.RFC3339)
+			}
+			row.ResetCredits = credits
+		}
+		usageRows = append(usageRows, row)
 	}
 
 	return control.State{
@@ -232,10 +252,20 @@ func (d *Daemon) factoryModelsInstalled() bool {
 		return installed
 	}
 	v := catalog.CheckFactoryModelsInstalled(d.isProviderEnabled)
+	ids := catalog.InstalledFactoryModelIDs()
 	d.mu.Lock()
-	d.factoryInstalled, d.factoryDirty = v, false
+	d.factoryInstalled, d.factoryIDs, d.factoryDirty = v, ids, false
 	d.mu.Unlock()
 	return v
+}
+
+// factoryInstalledIDs returns the cached set of DroidProxy model ids written
+// to the Factory config, refreshing it with the installed check.
+func (d *Daemon) factoryInstalledIDs() map[string]bool {
+	d.factoryModelsInstalled()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.factoryIDs
 }
 
 func (d *Daemon) invalidateFactory() {

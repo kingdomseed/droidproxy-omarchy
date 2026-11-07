@@ -187,6 +187,25 @@ func (d *Daemon) Call(ctx context.Context, method string, params json.RawMessage
 		}
 		return d.setSetting(p.Key, p.Value)
 
+	case "model.setEnabled":
+		var p struct {
+			Slug    string `json:"slug"`
+			Enabled bool   `json:"enabled"`
+		}
+		if !parseParams(params, &p) || p.Slug == "" {
+			return control.Fail("Invalid parameters.")
+		}
+		return d.setModelEnabled(p.Slug, p.Enabled)
+
+	case "model.remove":
+		var p struct {
+			Slug string `json:"slug"`
+		}
+		if !parseParams(params, &p) || p.Slug == "" {
+			return control.Fail("Invalid parameters.")
+		}
+		return d.removeModel(p.Slug)
+
 	case "factory.apply":
 		message, err := catalog.ApplyFactoryCustomModels(d.isProviderEnabled)
 		d.invalidateFactory()
@@ -199,6 +218,16 @@ func (d *Daemon) Call(ctx context.Context, method string, params json.RawMessage
 	case "usage.refresh":
 		d.refreshUsage()
 		return control.OK("")
+
+	case "usage.redeemReset":
+		var p struct {
+			Provider  string `json:"provider"`
+			AccountID string `json:"accountId"`
+		}
+		if !parseParams(params, &p) || p.Provider == "" || p.AccountID == "" {
+			return control.Fail("Invalid parameters.")
+		}
+		return d.redeemReset(p.Provider, p.AccountID)
 
 	case "usage.copyCurl":
 		var p struct {
@@ -272,6 +301,66 @@ func serviceTypeFromParam(provider string) (auth.ServiceType, control.CallResult
 		return "", control.Fail("GitHub Copilot is not supported on Linux.")
 	}
 	return st, control.OK("")
+}
+
+// setModelEnabled records desired state only. The Factory config is not
+// touched until Apply (or model.remove) reconciles it.
+func (d *Daemon) setModelEnabled(slug string, enabled bool) control.CallResult {
+	def, ok := catalog.FindDefinition(slug)
+	if !ok {
+		return control.Fail("Unknown model: " + slug)
+	}
+	if err := prefs.SetModelEnabled(slug, enabled); err != nil {
+		return control.Fail("Failed to save model setting: " + err.Error())
+	}
+	d.invalidateFactory()
+	d.notifyStateChanged()
+	state := "disabled"
+	if enabled {
+		state = "enabled"
+	}
+	return control.OK(def.DisplayName + " " + state + ". Apply Factory models to update the Factory config.")
+}
+
+// removeModel disables the model and reconciles the Factory config, which
+// deletes its DroidProxy entry. Apply only ever removes entries whose id
+// starts with "custom:droidproxy:", never other Factory models.
+func (d *Daemon) removeModel(slug string) control.CallResult {
+	def, ok := catalog.FindDefinition(slug)
+	if !ok {
+		return control.Fail("Unknown model: " + slug)
+	}
+	if err := prefs.SetModelEnabled(slug, false); err != nil {
+		return control.Fail("Failed to save model setting: " + err.Error())
+	}
+	message, err := catalog.ApplyFactoryCustomModels(d.isProviderEnabled)
+	d.invalidateFactory()
+	d.notifyStateChanged()
+	if err != nil {
+		return control.Fail(message).WithTitle(authResultTitle)
+	}
+	return control.OK(def.DisplayName + " removed from Factory.").WithTitle(authResultTitle)
+}
+
+// redeemReset spends one banked usage reset for the account. The panel
+// confirms first; this spends a scarce credit.
+func (d *Daemon) redeemReset(provider, accountID string) control.CallResult {
+	st, res := serviceTypeFromParam(provider)
+	if !res.OK {
+		return res
+	}
+	for _, account := range d.usageAccounts(st) {
+		if account.ID != accountID {
+			continue
+		}
+		message, ok := d.usage.RedeemReset(account)
+		if ok {
+			d.refreshUsage()
+			return control.OK(message)
+		}
+		return control.Fail(message)
+	}
+	return control.Fail("Unknown account.")
 }
 
 func (d *Daemon) setProviderEnabled(provider string, enabled bool) control.CallResult {

@@ -108,6 +108,55 @@ func TestApplyMergesModelsAndKeepsOtherSettings(t *testing.T) {
 	}
 }
 
+func TestApplySkipsAndRemovesDisabledModelsOnly(t *testing.T) {
+	isolateHome(t)
+	victim := Definitions()[0]
+	// A non-DroidProxy entry that merely carries the DroidProxy display name
+	// must survive: ownership is the custom:droidproxy: id prefix.
+	writeFactoryFile(t, `{"customModels":[{"id":"user-model","model":"m","displayName":"DroidProxy: mine"},{"id":"`+victim.SimpleID()+`","model":"stale"}]}`)
+	if err := prefs.SetModelEnabled(victim.IDSlug, false); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := ApplyFactoryCustomModels(allEnabled); err != nil {
+		t.Fatalf("apply failed: %v", err)
+	}
+	ids := map[string]bool{}
+	for _, m := range modelIDsFromSettings(t, readFactoryFile(t)) {
+		if id, ok := m["id"].(string); ok {
+			ids[id] = true
+		}
+	}
+	if ids[victim.SimpleID()] {
+		t.Errorf("disabled model %s was written to Factory", victim.SimpleID())
+	}
+	if !ids["user-model"] {
+		t.Error("non-DroidProxy model was removed")
+	}
+	if len(ids) != len(Definitions()) {
+		t.Errorf("expected %d entries (all but the disabled one, plus user model), got %d", len(Definitions()), len(ids))
+	}
+	if !CheckFactoryModelsInstalled(allEnabled) {
+		t.Error("installed check should pass with the disabled model absent")
+	}
+
+	if err := prefs.SetModelEnabled(victim.IDSlug, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ApplyFactoryCustomModels(allEnabled); err != nil {
+		t.Fatalf("re-apply failed: %v", err)
+	}
+	found := false
+	for _, m := range modelIDsFromSettings(t, readFactoryFile(t)) {
+		if m["id"] == victim.SimpleID() {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("re-enabled model was not restored to Factory")
+	}
+}
+
 func modelIndexFor(t *testing.T, models []map[string]any, id string) int {
 	t.Helper()
 	for _, m := range models {

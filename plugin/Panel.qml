@@ -45,10 +45,13 @@ Panel {
   property var optimistic: ({})
   property string confirmProvider: ""
   property string confirmAccount: ""
+  property string confirmSlug: ""
+  property string confirmResetProvider: ""
+  property string confirmResetAccount: ""
   property string confirmName: ""
   property string copiedUsageId: ""
 
-  readonly property bool confirming: confirmAccount !== ""
+  readonly property bool confirming: confirmAccount !== "" || confirmSlug !== "" || confirmResetAccount !== ""
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
   readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
   readonly property color dim: Qt.darker(foreground, 1.45)
@@ -177,14 +180,78 @@ Panel {
     confirmName = account.displayName
   }
 
+  function modelBySlug(providerId, slug) {
+    var provider = Model.providerById(dpState, providerId)
+    if (!provider) return null
+    for (var i = 0; i < provider.models.length; i++)
+      if (provider.models[i].slug === slug) return provider.models[i]
+    return null
+  }
+
+  function modelOn(model) {
+    return flag("model:" + model.slug, model.enabled)
+  }
+
+  function toggleModel(model) {
+    if (!service || !model) return
+    var next = !modelOn(model)
+    expect("model:" + model.slug, next)
+    service.call("model.setEnabled", { slug: model.slug, enabled: next }, function(result) {
+      if (!result.ok) {
+        root.drop("model:" + model.slug)
+        if (result.error) service.showNotice(result.error)
+      } else if (result.message) service.showNotice(result.message)
+    })
+  }
+
+  function askRemoveModel(model) {
+    if (!model) return
+    confirmProvider = ""
+    confirmAccount = ""
+    confirmSlug = model.slug
+    confirmName = model.displayName
+  }
+
+  function askUseReset(account) {
+    if (!account || !account.resetCount) return
+    confirmProvider = ""
+    confirmAccount = ""
+    confirmSlug = ""
+    confirmResetProvider = account.provider
+    confirmResetAccount = account.id
+    confirmName = account.email || account.providerName || account.provider
+  }
+
   function cancelRemove() {
     confirmProvider = ""
     confirmAccount = ""
+    confirmSlug = ""
+    confirmResetProvider = ""
+    confirmResetAccount = ""
     confirmName = ""
   }
 
   function confirmRemove() {
-    if (!service || confirmAccount === "") return
+    if (!service || !confirming) return
+    if (confirmResetAccount !== "") {
+      var resetProvider = confirmResetProvider
+      var resetAccount = confirmResetAccount
+      cancelRemove()
+      service.call("usage.redeemReset", { provider: resetProvider, accountId: resetAccount }, function(result) {
+        if (!result.ok && result.error) service.showNotice(result.error)
+        else if (result.message) service.showNotice(result.message)
+      })
+      return
+    }
+    if (confirmSlug !== "") {
+      var slug = confirmSlug
+      cancelRemove()
+      service.call("model.remove", { slug: slug }, function(result) {
+        if (!result.ok && result.error) service.showNotice(result.error)
+        else if (result.message) service.showNotice(result.message)
+      })
+      return
+    }
     var providerId = confirmProvider
     var accountId = confirmAccount
     cancelRemove()
@@ -213,8 +280,7 @@ Panel {
     copiedTimer.restart()
     service.copyUsage(
       account,
-      strings.t("quota.copied").arg(account.providerName || account.provider),
-      strings.t("quota.copiedSummary").arg(account.providerName || account.provider)
+      strings.t("quota.copied").arg(account.providerName || account.provider)
     )
   }
 
@@ -274,8 +340,10 @@ Panel {
     else if (entry.kind === "factory") applyFactory()
     else if (entry.kind === "refresh") service.call("usage.refresh", {})
     else if (entry.kind === "usage") copyUsage(entry.index)
+    else if (entry.kind === "reset") askUseReset(usage[entry.index])
     else if (entry.kind === "provider") toggleProvider(Model.providerById(dpState, entry.provider))
     else if (entry.kind === "account") toggleAccount(entry.provider, accountById(entry.provider, entry.accountId))
+    else if (entry.kind === "model") toggleModel(modelBySlug(entry.provider, entry.slug))
     else if (entry.kind === "connect") {
       if (providerBusy(entry.provider)) cancelProvider(entry.provider)
       else connectProvider(entry.provider)
@@ -297,8 +365,11 @@ Panel {
   function removeFocusedAccount() {
     var list = entries()
     var index = Model.entryIndex(list, cursorId)
-    if (index < 0 || list[index].kind !== "account") return
-    askRemove(list[index].provider, accountById(list[index].provider, list[index].accountId))
+    if (index < 0) return
+    if (list[index].kind === "account")
+      askRemove(list[index].provider, accountById(list[index].provider, list[index].accountId))
+    else if (list[index].kind === "model")
+      askRemoveModel(modelBySlug(list[index].provider, list[index].slug))
   }
 
   function inkFor(providerId, remaining) {
@@ -675,6 +746,28 @@ Panel {
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.caption
                 }
+                RowLayout {
+                  visible: usageCard.modelData.resetCount > 0
+                  spacing: Style.space(8)
+                  Text {
+                    Layout.fillWidth: true
+                    textFormat: Text.PlainText
+                    elide: Text.ElideRight
+                    text: strings.t("quota.bankedResets").arg(Commons.I18n.formatNumber(usageCard.modelData.resetCount))
+                    color: root.dim
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+                  Button {
+                    text: strings.t("quota.useReset")
+                    bordered: true
+                    hasCursor: root.hot("reset:" + usageCard.index)
+                    foreground: root.foreground
+                    fontFamily: root.fontFamily
+                    onHovered: function(on) { if (on) root.aim("reset:" + usageCard.index) }
+                    onClicked: root.askUseReset(usageCard.modelData)
+                  }
+                }
                 Row {
                   spacing: Style.space(6)
                   Repeater {
@@ -956,8 +1049,8 @@ Panel {
         anchors.fill: parent
         z: 3
         opened: root.confirming
-        message: strings.t("account.removeConfirm").arg(root.confirmName)
-        confirmText: strings.t("account.remove")
+        message: root.confirmResetAccount !== "" ? strings.t("quota.useResetConfirm").arg(root.confirmName) : (root.confirmSlug !== "" ? strings.t("model.removeConfirm").arg(root.confirmName) : strings.t("account.removeConfirm").arg(root.confirmName))
+        confirmText: root.confirmResetAccount !== "" ? strings.t("quota.useReset") : strings.t("account.remove")
         foreground: root.foreground
         fontFamily: root.fontFamily
         onOpenedChanged: if (opened) selectedIndex = 1
@@ -1048,7 +1141,7 @@ Panel {
               font.pixelSize: Style.font.caption
               text: {
                 var provider = providerColumn.modelData
-                if (provider.authenticating || root.loginActive(provider.id)) return strings.t("provider.signingIn")
+                if (provider.authenticating) return strings.t("provider.signingIn")
                 var count = provider.accounts.length
                 if (count === 0) return strings.t("account.none")
                 if (count === 1) return provider.accounts[0].displayName
@@ -1155,6 +1248,80 @@ Panel {
             foreground: root.foreground
             fontFamily: root.fontFamily
             onClicked: root.askRemove(providerColumn.modelData.id, accountRow.modelData)
+          }
+        }
+      }
+
+      Repeater {
+        model: providerColumn.modelData.enabled ? providerColumn.modelData.models : []
+        delegate: RowLayout {
+          id: modelRow
+          required property int index
+          required property var modelData
+          width: providerColumn.width
+          spacing: Style.space(8)
+
+          Item {
+            Layout.fillWidth: true
+            Layout.leftMargin: Style.space(32)
+            Layout.preferredHeight: modelLabel.implicitHeight + Style.space(8)
+
+            Rectangle {
+              anchors.fill: parent
+              radius: Style.cornerRadius
+              color: root.hot("model:" + modelRow.modelData.slug) ? root.hoverFill : "transparent"
+            }
+
+            Column {
+              id: modelLabel
+              anchors.left: parent.left
+              anchors.right: modelSwitch.left
+              anchors.rightMargin: Style.space(8)
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: 0
+              Text {
+                width: parent.width
+                textFormat: Text.PlainText
+                elide: Text.ElideRight
+                text: modelRow.modelData.displayName
+                color: root.modelOn(modelRow.modelData) ? root.foreground : root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+              }
+              Text {
+                width: parent.width
+                textFormat: Text.PlainText
+                text: modelRow.modelData.installed ? strings.t("model.inFactory") : strings.t("model.notInFactory")
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+              }
+            }
+
+            ToggleSwitch {
+              id: modelSwitch
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              interactive: false
+              checked: root.modelOn(modelRow.modelData)
+              hasCursor: root.hot("model:" + modelRow.modelData.slug)
+              foreground: root.foreground
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              hoverEnabled: true
+              onEntered: root.aim("model:" + modelRow.modelData.slug)
+              onClicked: root.toggleModel(modelRow.modelData)
+            }
+          }
+
+          Button {
+            visible: modelRow.modelData.installed
+            text: strings.t("account.remove")
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+            onClicked: root.askRemoveModel(modelRow.modelData)
           }
         }
       }
