@@ -2,6 +2,7 @@ package usage
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/nikships/droidproxy-omarchy/internal/auth"
+	"github.com/nikships/droidproxy-omarchy/internal/grok"
 )
 
 type testClock struct {
@@ -232,5 +234,72 @@ func TestRefreshHonorsClaudeRetryAfterOnManualRefresh(t *testing.T) {
 	}
 	if accounts := env.tracker.Accounts(); len(accounts) != 1 || accounts[0].Error != "Claude usage API returned 429" {
 		t.Fatalf("accounts = %+v", accounts)
+	}
+}
+
+func TestRefreshHonorsCodexRetryAfterOnManualRefresh(t *testing.T) {
+	var calls atomic.Int32
+	env := newTestEnv(t, func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Retry-After", "7200")
+		w.WriteHeader(http.StatusTooManyRequests)
+	}, nil, nil)
+	path := writeAccountFile(t, env.home, "codex-a@b.com.json", map[string]any{
+		"type": "codex", "email": "a@b.com", "access_token": "codex-token",
+	})
+	account := auth.Account{ID: filepath.Base(path), Email: "a@b.com", Type: auth.Codex, FilePath: path}
+
+	got := env.tracker.fetchCodexUsage(account)
+	if calls.Load() != 1 {
+		t.Fatalf("usage API calls = %d, want 1", calls.Load())
+	}
+	if !got.RateLimited || got.RetryAfter == nil {
+		t.Fatalf("RateLimited=%v RetryAfter=%v, want rate-limited with Retry-After so the cache backs off", got.RateLimited, got.RetryAfter)
+	}
+}
+
+func TestGrokUsage429IsRateLimited(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "3600")
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	t.Cleanup(srv.Close)
+	tracker := NewTracker()
+	tracker.SetBaseURLsWithGrok("", "", "", srv.URL)
+	tracker.SetGrokToken(func() (string, *grok.AuthError) { return "tok", nil })
+	account := auth.Account{ID: "grok.json", Type: auth.Grok, FilePath: "/tmp/grok.json"}
+
+	got := tracker.fetchGrokUsage(account)
+	if !got.RateLimited || got.RetryAfter == nil {
+		t.Fatalf("RateLimited=%v RetryAfter=%v, want rate-limited with Retry-After", got.RateLimited, got.RetryAfter)
+	}
+}
+
+func TestMetaCacheBudgetIsPerAccountWithMinuteCooldown(t *testing.T) {
+	clock := newTestClock()
+	cache := newUsageCache("", clock.now, noJitter)
+	shared := "/tmp/usage-cache-tests/meta-accounts.json"
+	a := auth.Account{ID: "meta:a@example.com", Email: "a@example.com", Type: auth.Meta, FilePath: shared}
+	b := auth.Account{ID: "meta:b@example.com", Email: "b@example.com", Type: auth.Meta, FilePath: shared}
+	var calls atomic.Int32
+	fetch := func() AccountUsage {
+		calls.Add(1)
+		return failedAccount(a, "probe failed")
+	}
+
+	cache.usage(a, fetch)
+	clock.advance(30 * time.Second)
+	cache.usage(a, fetch)
+	if calls.Load() != 1 {
+		t.Fatalf("calls = %d after 30s, want 1 (failed Meta probe cools down 60s)", calls.Load())
+	}
+	cache.usage(b, fetch)
+	if calls.Load() != 2 {
+		t.Fatalf("calls = %d for second Meta account, want 2 (separate budget per account)", calls.Load())
+	}
+	clock.advance(31 * time.Second)
+	cache.usage(a, fetch)
+	if calls.Load() != 3 {
+		t.Fatalf("calls = %d after 61s, want 3 (cooldown elapsed)", calls.Load())
 	}
 }

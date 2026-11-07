@@ -53,6 +53,7 @@ type cacheFlight struct {
 
 const (
 	claudeUsageInterval = 300 * time.Second
+	metaUsageInterval   = 60 * time.Second
 	otherUsageInterval  = 15 * time.Second
 	maxRateLimitBackoff = time.Hour
 	maxRateLimitStreak  = 5
@@ -77,7 +78,12 @@ func newUsageCache(path string, now func() time.Time, jitter func() time.Duratio
 // usage returns the cached sample while the account's budget is spent, and
 // otherwise runs fetch once for all concurrent callers.
 func (c *usageCache) usage(account auth.Account, fetch func() AccountUsage) AccountUsage {
+	// Meta accounts share one accounts.json, so their budget keys on the
+	// account id. File-based providers have one account per credential file.
 	key := string(account.Type) + ":" + filepath.Clean(account.FilePath)
+	if account.Type == auth.Meta {
+		key = string(account.Type) + ":" + account.ID
+	}
 	c.mu.Lock()
 	if flight, ok := c.inFlight[key]; ok {
 		c.mu.Unlock()
@@ -91,8 +97,13 @@ func (c *usageCache) usage(account auth.Account, fetch func() AccountUsage) Acco
 	}
 
 	interval := otherUsageInterval
-	if account.Type == auth.Claude {
+	switch account.Type {
+	case auth.Claude:
 		interval = claudeUsageInterval
+	case auth.Meta:
+		// Matches the probe's own 60s freshness window, and gives a failed
+		// probe a cooldown instead of an immediate retry on the next poll.
+		interval = metaUsageInterval
 	}
 	// Persist the reservation before fetching so a restart cannot retry it.
 	entry, ok := c.entries[key]

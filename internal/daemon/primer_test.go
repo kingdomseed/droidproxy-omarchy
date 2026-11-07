@@ -39,6 +39,38 @@ func TestShouldPrimeSchedule(t *testing.T) {
 	}
 }
 
+func TestShouldPrimeUsesWallClockAcrossDST(t *testing.T) {
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		t.Skip("tzdata unavailable")
+	}
+	// 2026-03-08 springs forward: elapsed-minute math would put a 07:00
+	// schedule at 08:00 local, so 07:30 must already be inside the window.
+	now := time.Date(2026, time.March, 8, 7, 30, 0, 0, loc)
+	if !shouldPrime(now, 7*60, nil) {
+		t.Fatal("07:30 on spring-forward day should prime a 07:00 schedule")
+	}
+	before := time.Date(2026, time.March, 8, 6, 30, 0, 0, loc)
+	if shouldPrime(before, 7*60, nil) {
+		t.Fatal("06:30 on spring-forward day must not prime a 07:00 schedule")
+	}
+}
+
+func TestShouldPrimeCatchesUpAcrossMidnight(t *testing.T) {
+	now := primerDate(0, 15, 3)
+	if !shouldPrime(now, 23*60+30, nil) {
+		t.Fatal("00:15 should catch up a 23:30 schedule from the day before")
+	}
+	fired := primerDate(23, 35, 2)
+	if shouldPrime(now, 23*60+30, &fired) {
+		t.Fatal("23:30 already fired last night; must not fire again")
+	}
+	late := primerDate(1, 45, 3)
+	if shouldPrime(late, 23*60+30, nil) {
+		t.Fatal("01:45 is past the 2-hour catch-up for 23:30")
+	}
+}
+
 func TestPrimerRequestsExistOnlyForProxyRoutedProviders(t *testing.T) {
 	path, body, ok := primerProxyRequest(auth.Claude)
 	if !ok || path != "/v1/messages" || !strings.Contains(body, "claude-haiku-4-5-20251001") {

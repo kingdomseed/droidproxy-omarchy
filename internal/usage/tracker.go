@@ -228,7 +228,7 @@ func (t *Tracker) fetch(accounts []auth.Account) []AccountUsage {
 			case auth.Grok:
 				results[i] = t.cache.usage(account, func() AccountUsage { return t.fetchGrokUsage(account) })
 			case auth.Meta:
-				results[i] = t.fetchMetaUsage(account)
+				results[i] = t.cache.usage(account, func() AccountUsage { return t.fetchMetaUsage(account) })
 			default:
 				results[i] = t.cache.usage(account, func() AccountUsage { return t.fetchCodexUsage(account) })
 			}
@@ -381,12 +381,12 @@ func (t *Tracker) fetchCodexUsage(account auth.Account) AccountUsage {
 }
 
 func (t *Tracker) fetchJSONUsage(account auth.Account, client *http.Client, request *http.Request, parse func(any) []Window) AccountUsage {
-	data, status, _, err := doJSON(client, request)
+	data, status, header, err := doJSON(client, request)
 	if err != nil {
 		return failedAccount(account, errText(err))
 	}
 	if status < 200 || status >= 300 {
-		return failedAccount(account, fmt.Sprintf("Usage API returned %d", status))
+		return failedResponse(account, fmt.Sprintf("Usage API returned %d", status), status, header)
 	}
 	var body any
 	if err := json.Unmarshal(data, &body); err != nil {
@@ -422,7 +422,7 @@ func (t *Tracker) fetchGrokUsage(account auth.Account) AccountUsage {
 	request.Header.Set("X-XAI-Token-Auth", "xai-grok-cli")
 	request.Header.Set("Accept", "application/json")
 
-	data, status, _, err := doJSON(client, request)
+	data, status, header, err := doJSON(client, request)
 	if err != nil {
 		return failedAccount(account, errText(err))
 	}
@@ -432,7 +432,7 @@ func (t *Tracker) fetchGrokUsage(account auth.Account) AccountUsage {
 		return failedAccount(account, fmt.Sprintf("Grok rejected the stored credentials (HTTP %d). Reconnect Grok in Settings.", status))
 	}
 	if status < 200 || status >= 300 {
-		return failedAccount(account, fmt.Sprintf("Grok usage API returned %d", status))
+		return failedResponse(account, fmt.Sprintf("Grok usage API returned %d", status), status, header)
 	}
 	windows := ParseGrokWindows(data)
 	if len(windows) == 0 {

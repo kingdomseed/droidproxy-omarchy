@@ -30,16 +30,23 @@ const (
 	windowPrimerTick       = 30 * time.Second
 )
 
-// shouldPrime fires once per day, at or after the scheduled time (minutes
-// after local midnight), within the catch-up window, and only if it has not
-// fired since then.
+// shouldPrime fires once per day, at or after the scheduled wall-clock time
+// (minutes after local midnight), within the catch-up window, and only if it
+// has not fired since then. Yesterday's occurrence counts too, so a late
+// evening schedule still catches up just after midnight.
 func shouldPrime(now time.Time, scheduledMinutes int, lastFired *time.Time) bool {
-	year, month, day := now.Date()
-	scheduled := time.Date(year, month, day, 0, 0, 0, 0, now.Location()).Add(time.Duration(scheduledMinutes) * time.Minute)
-	if now.Before(scheduled) || now.Sub(scheduled) >= windowPrimerCatchUp {
-		return false
+	hour, minute := scheduledMinutes/60, scheduledMinutes%60
+	for _, dayOffset := range []int{0, -1} {
+		day := now.AddDate(0, 0, dayOffset)
+		scheduled := time.Date(day.Year(), day.Month(), day.Day(), hour, minute, 0, 0, now.Location())
+		if now.Before(scheduled) || now.Sub(scheduled) >= windowPrimerCatchUp {
+			continue
+		}
+		if lastFired == nil || lastFired.Before(scheduled) {
+			return true
+		}
 	}
-	return lastFired == nil || lastFired.Before(scheduled)
+	return false
 }
 
 // primerProxyRequest is the request sent through ThinkingProxy for Claude and
