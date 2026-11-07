@@ -96,14 +96,18 @@ Panel {
   // Agents panel's revealItem). Cursor-bearing items call this when
   // they become hot; keyboard movement is consumed before the
   // Flickable could ever scroll on its own.
+  // The Flickable lives inside KeyboardPanel's loader scope, so root
+  // code reaches it through this bridge (set on its completion).
+  property var flick: null
+
   function revealItem(item) {
-    if (!item || !panelFlick) return
-    var top = item.mapToItem(panelFlick.contentItem, 0, 0).y
+    if (!item || !flick) return
+    var top = item.mapToItem(flick.contentItem, 0, 0).y
     var margin = Style.space(12)
-    if (top - margin < panelFlick.contentY)
-      panelFlick.contentY = Math.max(0, top - margin)
-    else if (top + item.height + margin > panelFlick.contentY + panelFlick.height)
-      panelFlick.contentY = Math.min(Math.max(0, panelFlick.contentHeight - panelFlick.height), top + item.height + margin - panelFlick.height)
+    if (top - margin < flick.contentY)
+      flick.contentY = Math.max(0, top - margin)
+    else if (top + item.height + margin > flick.contentY + flick.height)
+      flick.contentY = Math.min(Math.max(0, flick.contentHeight - flick.height), top + item.height + margin - flick.height)
   }
 
   function moveCursor(dx, dy) {
@@ -507,6 +511,7 @@ Panel {
 
       Flickable {
         id: panelFlick
+        Component.onCompleted: root.flick = panelFlick
         anchors.fill: parent
         contentWidth: width
         contentHeight: column.implicitHeight
