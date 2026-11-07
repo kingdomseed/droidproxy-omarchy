@@ -341,9 +341,26 @@ func (d *Daemon) cancelProviderAuth(provider string) control.CallResult {
 		}
 	case auth.Meta:
 		d.cancelMetaAuth()
+	default:
+		// Bundled browser logins: terminate the helper the backend manager
+		// still owns, which releases its OAuth callback port.
+		if command, ok := bundledLoginCommands()[st]; ok && d.backend != nil {
+			if !d.backend.CancelAuthCommand(command) && !d.loginInFlightFor(st) {
+				return control.Fail("No " + st.DisplayName() + " sign-in is in progress.")
+			}
+		}
+		d.mu.Lock()
+		delete(d.loginInFlight, st)
+		d.mu.Unlock()
 	}
 	d.notifyStateChanged()
-	return control.OK("")
+	return control.OK("Sign-in cancelled.")
+}
+
+func (d *Daemon) loginInFlightFor(st auth.ServiceType) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.loginInFlight[st]
 }
 
 func (d *Daemon) cancelMetaAuth() {
@@ -374,6 +391,9 @@ func (d *Daemon) runBundledLogin(ctx context.Context, st auth.ServiceType) contr
 		return control.Fail("Unknown provider: " + string(st))
 	}
 
+	if d.backend != nil && d.backend.AuthRunning(command) {
+		return control.Fail("A " + st.DisplayName() + " login is already in progress. Cancel it before starting another.")
+	}
 	d.mu.Lock()
 	if d.loginInFlight[st] {
 		d.mu.Unlock()

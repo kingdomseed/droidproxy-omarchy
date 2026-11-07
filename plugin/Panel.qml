@@ -48,15 +48,6 @@ Panel {
   property string confirmName: ""
   property string copiedUsageId: ""
 
-  // The released daemon clears "authenticating" while the browser login
-  // helper is still holding the callback port, and cancelAuth does not stop
-  // that helper. The panel watches for it and stops it on Cancel.
-  property var loginPending: ({})
-  property var loginLive: ({})
-  property var loginAnchor: ({})
-  property var loginDeadline: ({})
-  property int loginEpoch: 0
-
   readonly property bool confirming: confirmAccount !== ""
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
   readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
@@ -245,8 +236,9 @@ Panel {
     } else if (result.error) service.showNotice(result.error)
   }
 
+  // The daemon owns login helpers until they exit, so provider.authenticating
+  // in the state stream is the whole truth for "busy".
   function providerBusy(id) {
-    if (loginEpoch >= 0 && loginActive(id)) return true
     if (pendingSignIn && pendingSignIn.provider === id) return true
     var provider = Model.providerById(dpState, id)
     return !!(provider && provider.authenticating)
@@ -255,119 +247,20 @@ Panel {
   function connectProvider(id) {
     if (!service || !id) return
     service.call("provider.connect", { provider: id }, function(result) {
-      if (result.ok) root.noteLoginStarted(id)
       root.report(result, result.message || "")
     })
   }
 
   function cancelProvider(id) {
     if (!service || !root.loginProvider(id)) return
-    var pending = root.copyMap(loginPending)
-    var anchor = root.copyMap(loginAnchor)
-    var deadline = root.copyMap(loginDeadline)
-    delete pending[id]
-    delete anchor[id]
-    delete deadline[id]
-    loginPending = pending
-    loginAnchor = anchor
-    loginDeadline = deadline
-    loginEpoch = loginEpoch + 1
-    service.call("provider.cancelAuth", { provider: id })
-    service.showNotice(strings.t("notice.cancelled"))
-    if (id === "grok" || id === "meta") {
-      root.scanLogins()
-      return
-    }
-    var proc = loginProcessComponent.createObject(root, {})
-    proc.command = ["/usr/bin/python3", "-B", root.loginScript(), "cancel", id]
-    proc.running = true
-  }
-
-  function loginActive(id) {
-    return loginPending[id] === true || loginLive[id] === true
-  }
-
-  function noteLoginStarted(id) {
-    if (!root.loginProvider(id)) return
-    var pending = root.copyMap(loginPending)
-    var anchor = root.copyMap(loginAnchor)
-    var deadline = root.copyMap(loginDeadline)
-    pending[id] = true
-    anchor[id] = "wait"
-    deadline[id] = Date.now() + 8000
-    loginPending = pending
-    loginAnchor = anchor
-    loginDeadline = deadline
-    loginEpoch = loginEpoch + 1
-    root.scanLogins()
-  }
-
-  function loginScript() {
-    var url = Qt.resolvedUrl("login-procs.py").toString()
-    if (url.indexOf("file://") === 0) url = url.slice("file://".length)
-    return decodeURIComponent(url)
+    service.call("provider.cancelAuth", { provider: id }, function(result) {
+      if (result.ok) service.showNotice(strings.t("notice.cancelled"))
+      else if (result.error) service.showNotice(result.error)
+    })
   }
 
   function loginProvider(id) {
     return id === "claude" || id === "codex" || id === "antigravity" || id === "kimi" || id === "grok" || id === "meta"
-  }
-
-  function copyMap(source) {
-    var next = {}
-    for (var key in source) next[key] = source[key]
-    return next
-  }
-
-  function sameFlags(left, right) {
-    var key
-    for (key in left) if (left[key] && !right[key]) return false
-    for (key in right) if (right[key] && !left[key]) return false
-    return true
-  }
-
-  function scanLogins() {
-    if (scanProc.running) {
-      scanAgain.restart()
-      return
-    }
-    scanProc.command = ["/usr/bin/python3", "-B", root.loginScript(), "scan"]
-    scanProc.running = true
-  }
-
-  function applyScan(text) {
-    var live = {}
-    var parts = String(text || "").trim().split(/\s+/)
-    for (var i = 0; i < parts.length; i++) {
-      if (parts[i] === "") continue
-      var pair = parts[i].split("=")
-      if (pair.length === 2 && pair[0] !== "" && pair[1] !== "") live[pair[0]] = true
-    }
-    var now = Date.now()
-    var ids = {}
-    var key
-    for (key in loginPending) ids[key] = true
-    for (key in loginAnchor) ids[key] = true
-    for (key in live) ids[key] = true
-    var pending = {}
-    var anchor = {}
-    var deadline = {}
-    for (key in ids) {
-      if (live[key]) {
-        pending[key] = true
-        anchor[key] = "seen"
-        deadline[key] = loginDeadline[key] || 0
-      } else if (loginAnchor[key] === "wait" && now < (loginDeadline[key] || 0)) {
-        pending[key] = true
-        anchor[key] = "wait"
-        deadline[key] = loginDeadline[key]
-      }
-    }
-    var changed = !root.sameFlags(loginLive, live) || !root.sameFlags(loginPending, pending)
-    loginAnchor = anchor
-    loginDeadline = deadline
-    if (!root.sameFlags(loginLive, live)) loginLive = live
-    if (!root.sameFlags(loginPending, pending)) loginPending = pending
-    if (changed) loginEpoch = loginEpoch + 1
   }
 
   function activate() {
@@ -446,40 +339,6 @@ Panel {
     interval: 1000
     onTriggered: root.copiedUsageId = ""
   }
-
-  Timer {
-    interval: 1500
-    repeat: true
-    running: true
-    onTriggered: root.scanLogins()
-  }
-
-  Timer {
-    id: scanAgain
-    interval: 400
-    onTriggered: root.scanLogins()
-  }
-
-  Process {
-    id: scanProc
-    stdout: StdioCollector {
-      id: scanOut
-      waitForEnd: true
-    }
-    onExited: root.applyScan(scanOut.text)
-  }
-
-  Component {
-    id: loginProcessComponent
-    Process {
-      onExited: {
-        root.scanLogins()
-        destroy()
-      }
-    }
-  }
-
-  Component.onCompleted: root.scanLogins()
 
   BarIconButton {
     id: button

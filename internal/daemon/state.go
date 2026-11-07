@@ -79,8 +79,12 @@ func (d *Daemon) State() control.State {
 			Enabled: prefs.IsProviderEnabled(string(p.serviceType)),
 			Help:    p.help,
 		}
+		bundledRunning := false
+		if command, ok := bundledLoginCommands()[p.serviceType]; ok && d.backend != nil {
+			bundledRunning = d.backend.AuthRunning(command)
+		}
 		switch {
-		case loginInFlight[p.serviceType]:
+		case loginInFlight[p.serviceType] || bundledRunning:
 			st.Authenticating = true
 		case p.serviceType == auth.Grok && grokSession != nil:
 			st.Authenticating = true

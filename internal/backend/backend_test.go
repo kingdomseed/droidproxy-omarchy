@@ -165,6 +165,32 @@ func TestRunAuthCommandRunningProcess(t *testing.T) {
 	}
 }
 
+func TestCancelAuthCommandTerminatesHelper(t *testing.T) {
+	m, dir := newTestManager(t)
+	writeScript(t, filepath.Join(dir, "cli-proxy-api"), "exec sleep 30\n")
+
+	ok, _ := m.RunAuthCommand(ClaudeLogin)
+	if !ok {
+		t.Fatal("login should report the browser opened")
+	}
+	if !m.AuthRunning(ClaudeLogin) {
+		t.Fatal("helper should still be tracked after the liveness result")
+	}
+	if !m.CancelAuthCommand(ClaudeLogin) {
+		t.Fatal("cancel should signal the running helper")
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for m.AuthRunning(ClaudeLogin) && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if m.AuthRunning(ClaudeLogin) {
+		t.Fatal("helper still tracked after cancel")
+	}
+	if m.CancelAuthCommand(ClaudeLogin) {
+		t.Fatal("cancel with no helper should report false")
+	}
+}
+
 func TestRunAuthCommandBrowserOpenedOutput(t *testing.T) {
 	m, dir := newTestManager(t)
 	writeScript(t, filepath.Join(dir, "cli-proxy-api"), "echo \"Opening browser\"\nexit 0\n")
