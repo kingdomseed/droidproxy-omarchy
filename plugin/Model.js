@@ -37,10 +37,12 @@ function providerList(state) {
     if (!/^[a-z0-9-]+$/.test(id)) continue
     var rawAccounts = Array.isArray(provider.accounts) ? provider.accounts : []
     var accounts = []
-    var accountLimit = Math.min(rawAccounts.length, 8)
+    var accountLimit = Math.min(rawAccounts.length, 64)
     for (var a = 0; a < accountLimit; a++) {
       var account = rawAccounts[a] || {}
-      var accountId = clip(account.id || account.email || "", 160)
+      // IDs are compared exactly by the daemon; 320 sits above any
+      // filename the filesystem allows, so this never truncates one.
+      var accountId = clip(account.id || account.email || "", 320)
       if (accountId === "") continue
       accounts.push({
         id: accountId,
@@ -92,12 +94,13 @@ function usageAccounts(state) {
   var usage = state && state.usage
   var raw = usage && Array.isArray(usage.accounts) ? usage.accounts : []
   var out = []
-  var limit = Math.min(raw.length, 16)
+  var limit = Math.min(raw.length, 64)
   for (var i = 0; i < limit; i++) {
     var account = raw[i] || {}
     var rawWindows = Array.isArray(account.windows) ? account.windows : []
     var windows = []
-    var windowLimit = Math.min(rawWindows.length, 4)
+    // The Claude parser emits up to seven buckets; keep them all.
+    var windowLimit = Math.min(rawWindows.length, 8)
     for (var w = 0; w < windowLimit; w++) {
       var item = rawWindows[w] || {}
       windows.push({
@@ -106,7 +109,7 @@ function usageAccounts(state) {
         resetText: clip(item.resetText, 80)
       })
     }
-    var id = clip(account.id || account.email || "", 160)
+    var id = clip(account.id || account.email || "", 320)
     var credits = account.resetCredits || null
     out.push({
       provider: clip(account.provider, 40),
@@ -294,6 +297,8 @@ function cursorEntries(state, ui) {
     add({ id: "update-check", kind: "update-check" })
     if (state && state.update && state.update.state === "available")
       add({ id: "update-install", kind: "update-install" })
+    add({ id: "update-auto-check", kind: "setting", key: "autoCheckUpdates" })
+    add({ id: "update-auto-install", kind: "setting", key: "autoInstallUpdates" })
   }
   return entries
 }

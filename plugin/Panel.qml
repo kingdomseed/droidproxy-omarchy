@@ -92,6 +92,20 @@ Panel {
     cursorActive = true
   }
 
+  // Keeps whatever the cursor lands on inside the scrolled view (the
+  // Agents panel's revealItem). Cursor-bearing items call this when
+  // they become hot; keyboard movement is consumed before the
+  // Flickable could ever scroll on its own.
+  function revealItem(item) {
+    if (!item || !panelFlick) return
+    var top = item.mapToItem(panelFlick.contentItem, 0, 0).y
+    var margin = Style.space(12)
+    if (top - margin < panelFlick.contentY)
+      panelFlick.contentY = Math.max(0, top - margin)
+    else if (top + item.height + margin > panelFlick.contentY + panelFlick.height)
+      panelFlick.contentY = Math.min(Math.max(0, panelFlick.contentHeight - panelFlick.height), top + item.height + margin - panelFlick.height)
+  }
+
   function moveCursor(dx, dy) {
     if (dx !== 0 && cursorId.indexOf("primer:") === 0) {
       var primer = Model.primer(dpState, cursorId.slice("primer:".length))
@@ -467,10 +481,24 @@ Panel {
         }
         root.moveCursor(dx, dy)
       }
-      onActivateRequested: root.confirming ? root.confirmRemove() : root.activate()
+      // While the dialog is open, activation follows its selection:
+      // index 0 is Cancel, index 1 is the destructive action (the stock
+      // ConfirmDialog.handleKey contract). Confirming unconditionally
+      // here would make Enter on Cancel delete the account.
+      onActivateRequested: function() {
+        if (!root.confirming) { root.activate(); return }
+        if (confirmDialog.selectedIndex === 1) root.confirmRemove()
+        else root.cancelRemove()
+      }
       onCloseRequested: root.confirming ? root.cancelRemove() : root.close()
       onDeleteRequested: if (!root.confirming) root.removeFocusedAccount()
-      onTabRequested: function(direction) { root.switchPanel(direction) }
+      onTabRequested: function(direction) {
+        if (root.confirming) {
+          confirmDialog.selectedIndex = confirmDialog.selectedIndex === 0 ? 1 : 0
+          return
+        }
+        root.switchPanel(direction)
+      }
       onTextKey: function(text) {
         if (text === "r" || text === "R") {
           if (root.service) root.service.call("usage.refresh", {})
@@ -517,6 +545,7 @@ Panel {
                 checked: root.running
                 busy: root.starting
                 hasCursor: root.hot("server")
+                onHasCursorChanged: if (hasCursor) root.revealItem(this)
                 foreground: hero.foreground
                 onHovered: function(on) { if (on) root.aim("server") }
                 onToggled: root.toggleServer()
@@ -540,6 +569,7 @@ Panel {
             text: strings.t("copy.url")
             bordered: true
             hasCursor: root.hot("copy-url")
+            onHasCursorChanged: if (hasCursor) root.revealItem(this)
             foreground: root.foreground
             fontFamily: root.fontFamily
             visible: root.dpState && root.dpState.server && String(root.dpState.server.url || "") !== ""
@@ -583,6 +613,7 @@ Panel {
                 text: strings.t("auth.copy")
                 bordered: true
                 hasCursor: root.hot("signin-copy")
+                onHasCursorChanged: if (hasCursor) root.revealItem(this)
                 foreground: root.foreground
                 fontFamily: root.fontFamily
                 onHovered: function(on) { if (on) root.aim("signin-copy") }
@@ -593,6 +624,7 @@ Panel {
                 text: strings.t("auth.open")
                 bordered: true
                 hasCursor: root.hot("signin-open")
+                onHasCursorChanged: if (hasCursor) root.revealItem(this)
                 foreground: root.foreground
                 fontFamily: root.fontFamily
                 onHovered: function(on) { if (on) root.aim("signin-open") }
@@ -602,6 +634,7 @@ Panel {
                 text: strings.t("auth.cancel")
                 bordered: true
                 hasCursor: root.hot("signin-cancel")
+                onHasCursorChanged: if (hasCursor) root.revealItem(this)
                 foreground: root.foreground
                 fontFamily: root.fontFamily
                 onHovered: function(on) { if (on) root.aim("signin-cancel") }
@@ -628,6 +661,7 @@ Panel {
                 visible: root.usage.length > 0
                 text: strings.t("quota.refresh")
                 hasCursor: root.hot("refresh")
+                onHasCursorChanged: if (hasCursor) root.revealItem(this)
                 foreground: root.foreground
                 fontFamily: root.fontFamily
                 onHovered: function(on) { if (on) root.aim("refresh") }
@@ -678,6 +712,7 @@ Panel {
               active: !root.modelsInstalled && !root.justApplied
               bordered: true
               hasCursor: root.hot("factory")
+              onHasCursorChanged: if (hasCursor) root.revealItem(this)
               foreground: root.foreground
               fontFamily: root.fontFamily
               onHovered: function(on) { if (on) root.aim("factory") }
@@ -696,6 +731,7 @@ Panel {
               text: strings.t("section.advanced")
               bordered: true
               hasCursor: root.hot("advanced")
+              onHasCursorChanged: if (hasCursor) root.revealItem(this)
               foreground: root.foreground
               fontFamily: root.fontFamily
               onHovered: function(on) { if (on) root.aim("advanced") }
@@ -718,6 +754,7 @@ Panel {
               label: strings.t("setting.launch")
               checked: root.flag("launchAtLogin", Model.setting(root.dpState, "launchAtLogin", false) === true)
               hasCursor: root.hot("launch")
+              onHasCursorChanged: if (hasCursor) root.revealItem(this)
               foreground: root.foreground
               fontFamily: root.fontFamily
               onHovered: function(on) { if (on) root.aim("launch") }
@@ -730,6 +767,7 @@ Panel {
               description: strings.t("setting.failoverHelp")
               checked: root.flag("sequentialAccountFailover", Model.setting(root.dpState, "sequentialAccountFailover", false) === true)
               hasCursor: root.hot("failover")
+              onHasCursorChanged: if (hasCursor) root.revealItem(this)
               foreground: root.foreground
               fontFamily: root.fontFamily
               onHovered: function(on) { if (on) root.aim("failover") }
@@ -742,6 +780,7 @@ Panel {
               description: strings.t("setting.verboseHelp")
               checked: root.flag("verboseLogging", Model.setting(root.dpState, "verboseLogging", false) === true)
               hasCursor: root.hot("verbose")
+              onHasCursorChanged: if (hasCursor) root.revealItem(this)
               foreground: root.foreground
               fontFamily: root.fontFamily
               onHovered: function(on) { if (on) root.aim("verbose") }
@@ -753,6 +792,7 @@ Panel {
               label: strings.t("setting.remote")
               checked: root.remoteOn
               hasCursor: root.hot("remote")
+              onHasCursorChanged: if (hasCursor) root.revealItem(this)
               foreground: root.foreground
               fontFamily: root.fontFamily
               onHovered: function(on) { if (on) root.aim("remote") }
@@ -804,6 +844,7 @@ Panel {
               label: strings.t("setting.beta")
               checked: root.betaOn
               hasCursor: root.hot("beta")
+              onHasCursorChanged: if (hasCursor) root.revealItem(this)
               foreground: root.foreground
               fontFamily: root.fontFamily
               onHovered: function(on) { if (on) root.aim("beta") }
@@ -843,6 +884,7 @@ Panel {
                 text: strings.t("open.auth")
                 bordered: true
                 hasCursor: root.hot("auth-folder")
+                onHasCursorChanged: if (hasCursor) root.revealItem(this)
                 foreground: root.foreground
                 fontFamily: root.fontFamily
                 onHovered: function(on) { if (on) root.aim("auth-folder") }
@@ -852,6 +894,7 @@ Panel {
                 text: strings.t("open.logs")
                 bordered: true
                 hasCursor: root.hot("logs-folder")
+                onHasCursorChanged: if (hasCursor) root.revealItem(this)
                 foreground: root.foreground
                 fontFamily: root.fontFamily
                 onHovered: function(on) { if (on) root.aim("logs-folder") }
@@ -876,6 +919,7 @@ Panel {
                 text: strings.t("update.check")
                 bordered: true
                 hasCursor: root.hot("update-check")
+                onHasCursorChanged: if (hasCursor) root.revealItem(this)
                 foreground: root.foreground
                 fontFamily: root.fontFamily
                 onHovered: function(on) { if (on) root.aim("update-check") }
@@ -886,11 +930,36 @@ Panel {
                 text: strings.t("update.install")
                 bordered: true
                 hasCursor: root.hot("update-install")
+                onHasCursorChanged: if (hasCursor) root.revealItem(this)
                 foreground: root.foreground
                 fontFamily: root.fontFamily
                 onHovered: function(on) { if (on) root.aim("update-install") }
                 onClicked: root.service && root.service.call("update.install", {}, function(result) { root.report(result, result.message || "") })
               }
+            }
+            Toggle {
+              visible: root.advancedOpen
+              width: parent.width
+              label: strings.t("setting.updateCheck")
+              checked: root.flag("autoCheckUpdates", Model.setting(root.dpState, "autoCheckUpdates", true) === true)
+              hasCursor: root.hot("update-auto-check")
+              onHasCursorChanged: if (hasCursor) root.revealItem(this)
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onHovered: function(on) { if (on) root.aim("update-auto-check") }
+              onClicked: root.toggleSetting("autoCheckUpdates")
+            }
+            Toggle {
+              visible: root.advancedOpen
+              width: parent.width
+              label: strings.t("setting.updateInstall")
+              checked: root.flag("autoInstallUpdates", Model.setting(root.dpState, "autoInstallUpdates", false) === true)
+              hasCursor: root.hot("update-auto-install")
+              onHasCursorChanged: if (hasCursor) root.revealItem(this)
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onHovered: function(on) { if (on) root.aim("update-auto-install") }
+              onClicked: root.toggleSetting("autoInstallUpdates")
             }
           }
         }
@@ -1061,6 +1130,7 @@ Panel {
             interactive: false
             checked: root.flag("provider:" + providerColumn.modelData.id, providerColumn.modelData.enabled)
             hasCursor: root.hot("provider:" + providerColumn.modelData.id)
+            onHasCursorChanged: if (hasCursor) root.revealItem(this)
             foreground: root.foreground
           }
         }
@@ -1158,6 +1228,7 @@ Panel {
               interactive: false
               checked: root.accountOn(providerColumn.modelData.id, accountRow.modelData)
               hasCursor: root.hot("account:" + providerColumn.modelData.id + ":" + accountRow.modelData.id)
+              onHasCursorChanged: if (hasCursor) root.revealItem(this)
               foreground: root.foreground
             }
 
@@ -1209,6 +1280,7 @@ Panel {
               fontSize: Style.font.caption
               verticalPadding: Style.space(3)
               hasCursor: root.hot("reset:" + accountRow.usageIndex)
+              onHasCursorChanged: if (hasCursor) root.revealItem(this)
               foreground: root.foreground
               fontFamily: root.fontFamily
               onHovered: function(on) { if (on) root.aim("reset:" + accountRow.usageIndex) }
@@ -1230,6 +1302,7 @@ Panel {
                 ink: root.inkFor(providerColumn.modelData.id, modelData.remaining)
                 fontFamily: root.fontFamily
                 hasCursor: root.hot("usage:" + accountRow.usageIndex)
+                onHasCursorChanged: if (hasCursor) root.revealItem(this)
                 confirmed: root.copiedUsageId === String(accountRow.usageIndex)
                 onHovered: function(on) { if (on) root.aim("usage:" + accountRow.usageIndex) }
                 onClicked: root.copyUsage(accountRow.usageIndex)
@@ -1245,6 +1318,7 @@ Panel {
         text: root.providerBusy(providerColumn.modelData.id) ? strings.t("auth.cancelSignIn") : strings.t("account.add")
         bordered: true
         hasCursor: root.hot("connect:" + providerColumn.modelData.id)
+        onHasCursorChanged: if (hasCursor) root.revealItem(this)
         foreground: root.foreground
         fontFamily: root.fontFamily
         onHovered: function(on) { if (on) root.aim("connect:" + providerColumn.modelData.id) }
@@ -1383,6 +1457,7 @@ Panel {
               interactive: false
               checked: root.modelOn(modelRow.modelData)
               hasCursor: root.hot("model:" + modelRow.modelData.slug)
+              onHasCursorChanged: if (hasCursor) root.revealItem(this)
               foreground: root.foreground
             }
 
@@ -1420,6 +1495,7 @@ Panel {
           text: strings.t("junie.save")
           bordered: true
           hasCursor: root.hot("junie")
+          onHasCursorChanged: if (hasCursor) root.revealItem(this)
           foreground: root.foreground
           fontFamily: root.fontFamily
           onHovered: function(on) { if (on) root.aim("junie") }
@@ -1453,6 +1529,7 @@ Panel {
             return primer ? root.flag(primer.enabledKey, primer.enabled) : false
           }
           hasCursor: root.hot("primer:" + providerColumn.modelData.id)
+          onHasCursorChanged: if (hasCursor) root.revealItem(this)
           foreground: root.foreground
           fontFamily: root.fontFamily
           onHovered: function(on) { if (on) root.aim("primer:" + providerColumn.modelData.id) }
@@ -1493,6 +1570,7 @@ Panel {
             label: modelData.label
             checked: root.flag(modelData.key, Model.setting(root.dpState, modelData.key, false) === true)
             hasCursor: root.hot("fast:" + modelData.key)
+            onHasCursorChanged: if (hasCursor) root.revealItem(this)
             foreground: root.foreground
             fontFamily: root.fontFamily
             onHovered: function(on) { if (on) root.aim("fast:" + modelData.key) }
@@ -1507,6 +1585,7 @@ Panel {
         label: strings.t("setting.contributor")
         checked: root.flag("metaContributorMode", Model.setting(root.dpState, "metaContributorMode", false) === true)
         hasCursor: root.hot("contributor")
+        onHasCursorChanged: if (hasCursor) root.revealItem(this)
         foreground: root.foreground
         fontFamily: root.fontFamily
         onHovered: function(on) { if (on) root.aim("contributor") }
