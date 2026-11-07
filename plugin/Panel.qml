@@ -969,7 +969,7 @@ Panel {
       readonly property color tint: modelData && modelData.color !== "" ? modelData.color : root.accent
       width: parent ? parent.width : 0
       implicitHeight: providerColumn.implicitHeight + Style.space(24)
-      radius: Math.max(Style.cornerRadius, Style.space(10))
+      radius: Style.cornerRadius
       color: Style.normalFill
       border.color: Style.normalBorderColor
       border.width: 1
@@ -1013,7 +1013,7 @@ Panel {
           Rectangle {
             Layout.preferredWidth: Style.space(44)
             Layout.preferredHeight: Style.space(44)
-            radius: Style.space(9)
+            radius: Style.cornerRadius
             color: Util.alpha(providerCardRect.tint, 0.22)
             Item {
               anchors.fill: parent
@@ -1219,25 +1219,17 @@ Panel {
           RowLayout {
             visible: accountRow.usageEntry !== null && accountRow.usageEntry.resetCount > 0
             spacing: Style.space(8)
-            Rectangle {
-              radius: height / 2
-              color: Style.selectedAccentFill
-              implicitWidth: resetLabel.implicitWidth + Style.space(16)
-              implicitHeight: resetLabel.implicitHeight + Style.space(6)
-              Text {
-                id: resetLabel
-                anchors.centerIn: parent
-                textFormat: Text.PlainText
-                text: accountRow.usageEntry ? strings.t("quota.bankedResets").arg(Commons.I18n.formatNumber(accountRow.usageEntry.resetCount)) : ""
-                color: root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
-              }
+            Tag {
+              text: accountRow.usageEntry ? strings.t("quota.bankedResets").arg(Commons.I18n.formatNumber(accountRow.usageEntry.resetCount)) : ""
+              bold: true
+              fontFamily: root.fontFamily
+              textColor: root.foreground
             }
             Button {
               text: strings.t("quota.useReset")
               bordered: true
+              fontSize: Style.font.caption
+              verticalPadding: Style.space(3)
               hasCursor: root.hot("reset:" + accountRow.usageIndex)
               foreground: root.foreground
               fontFamily: root.fontFamily
@@ -1305,7 +1297,7 @@ Panel {
           Rectangle {
             width: Style.space(20)
             height: width
-            radius: Style.space(5)
+            radius: Style.cornerRadius
             color: Util.alpha(providerCardRect.tint, 0.22)
             anchors.verticalCenter: parent.verticalCenter
             Text {
@@ -1398,21 +1390,11 @@ Panel {
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
               }
-              Rectangle {
+              Tag {
                 visible: modelRow.modelData.installed
-                radius: height / 2
-                color: Style.selectedAccentFill
-                implicitWidth: inFactoryLabel.implicitWidth + Style.space(12)
-                implicitHeight: inFactoryLabel.implicitHeight + Style.space(4)
-                Text {
-                  id: inFactoryLabel
-                  anchors.centerIn: parent
-                  textFormat: Text.PlainText
-                  text: strings.t("model.inFactory")
-                  color: root.foreground
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.caption
-                }
+                text: strings.t("model.inFactory")
+                fontFamily: root.fontFamily
+                textColor: root.foreground
               }
             }
 

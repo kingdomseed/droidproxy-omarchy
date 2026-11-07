@@ -5,8 +5,8 @@ import qs.Commons as Commons
 import qs.Ui
 
 // Remaining quota as a horizontal bar, following the Agents panel Meter:
-// a rounded track, a fill that moves only when a new reading arrives, and
-// the percentage as plain tabular text. No ring.
+// a track in the shell corner radius, a fill that moves only when a new
+// reading arrives, and the percentage as plain tabular text. No ring.
 Item {
   id: root
 
@@ -74,7 +74,7 @@ Item {
       id: trackRect
       width: parent.width
       height: root.thickness
-      radius: height / 2
+      radius: Math.min(Style.cornerRadius, height / 2)
       color: root.track
 
       Rectangle {
