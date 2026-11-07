@@ -201,7 +201,6 @@ All keys are always present. Strings are never `null`; use `""`.
 | `junie.saveKey` | `{"apiKey"}` | Write `~/.cli-proxy-api/junie.json` (0600). |
 | `settings.set` | `{"key","value"}` | Set one key from `state.settings` (see below). |
 | `model.setEnabled` | `{"slug","enabled"}` | Enable/disable one catalog model (desired state only; the Factory config changes on `factory.apply`). |
-| `model.remove` | `{"slug"}` | Disable the model and apply, which deletes its `custom:droidproxy:` entry from the Factory config. Other Factory models are never touched. |
 | `factory.apply` | – | Apply/Re-apply Factory custom models (backup first). Writes only enabled providers' enabled models. |
 | `usage.refresh` | – | Refresh OAuth quota windows. |
 | `usage.redeemReset` | `{"provider","accountId"}` | Spend one banked usage reset (Codex and Claude). The panel confirms first; never automatic. |

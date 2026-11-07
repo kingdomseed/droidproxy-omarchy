@@ -45,13 +45,12 @@ Panel {
   property var optimistic: ({})
   property string confirmProvider: ""
   property string confirmAccount: ""
-  property string confirmSlug: ""
   property string confirmResetProvider: ""
   property string confirmResetAccount: ""
   property string confirmName: ""
   property string copiedUsageId: ""
 
-  readonly property bool confirming: confirmAccount !== "" || confirmSlug !== "" || confirmResetAccount !== ""
+  readonly property bool confirming: confirmAccount !== "" || confirmResetAccount !== ""
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
   readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
   readonly property color dim: Qt.darker(foreground, 1.45)
@@ -209,23 +208,14 @@ Panel {
       if (!result.ok) {
         root.drop("model:" + model.slug)
         if (result.error) service.showNotice(result.error)
-      } else if (result.message) service.showNotice(result.message)
+      } else root.applyFactory()
     })
-  }
-
-  function askRemoveModel(model) {
-    if (!model) return
-    confirmProvider = ""
-    confirmAccount = ""
-    confirmSlug = model.slug
-    confirmName = model.displayName
   }
 
   function askUseReset(account) {
     if (!account || !account.resetCount) return
     confirmProvider = ""
     confirmAccount = ""
-    confirmSlug = ""
     confirmResetProvider = account.provider
     confirmResetAccount = account.id
     confirmName = account.email || account.providerName || account.provider
@@ -234,7 +224,6 @@ Panel {
   function cancelRemove() {
     confirmProvider = ""
     confirmAccount = ""
-    confirmSlug = ""
     confirmResetProvider = ""
     confirmResetAccount = ""
     confirmName = ""
@@ -247,15 +236,6 @@ Panel {
       var resetAccount = confirmResetAccount
       cancelRemove()
       service.call("usage.redeemReset", { provider: resetProvider, accountId: resetAccount }, function(result) {
-        if (!result.ok && result.error) service.showNotice(result.error)
-        else if (result.message) service.showNotice(result.message)
-      })
-      return
-    }
-    if (confirmSlug !== "") {
-      var slug = confirmSlug
-      cancelRemove()
-      service.call("model.remove", { slug: slug }, function(result) {
         if (!result.ok && result.error) service.showNotice(result.error)
         else if (result.message) service.showNotice(result.message)
       })
@@ -377,8 +357,6 @@ Panel {
     if (index < 0) return
     if (list[index].kind === "account")
       askRemove(list[index].provider, accountById(list[index].provider, list[index].accountId))
-    else if (list[index].kind === "model")
-      askRemoveModel(modelBySlug(list[index].provider, list[index].slug))
   }
 
   function inkFor(providerId, remaining) {
@@ -948,7 +926,7 @@ Panel {
         anchors.fill: parent
         z: 3
         opened: root.confirming
-        message: root.confirmResetAccount !== "" ? strings.t("quota.useResetConfirm").arg(root.confirmName) : (root.confirmSlug !== "" ? strings.t("model.removeConfirm").arg(root.confirmName) : strings.t("account.removeConfirm").arg(root.confirmName))
+        message: root.confirmResetAccount !== "" ? strings.t("quota.useResetConfirm").arg(root.confirmName) : strings.t("account.removeConfirm").arg(root.confirmName)
         confirmText: root.confirmResetAccount !== "" ? strings.t("quota.useReset") : strings.t("account.remove")
         foreground: root.foreground
         fontFamily: root.fontFamily
@@ -1416,13 +1394,6 @@ Panel {
             }
           }
 
-          Button {
-            visible: modelRow.modelData.installed && root.hot("model:" + modelRow.modelData.slug)
-            text: strings.t("account.remove")
-            foreground: root.foreground
-            fontFamily: root.fontFamily
-            onClicked: root.askRemoveModel(modelRow.modelData)
-          }
         }
       }
 

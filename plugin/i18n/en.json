@@ -38,7 +38,6 @@
   "account.removeConfirm": "Remove %1?",
   "model.inFactory": "In Factory",
   "model.notInFactory": "Not in Factory",
-  "model.removeConfirm": "Remove %1 from Factory? It will also be disabled in DroidProxy.",
   "accounts.count": { "one": "%1 account", "other": "%1 accounts" },
   "junie.placeholder": "Junie API key",
   "junie.save": "Save key",

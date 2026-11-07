@@ -197,15 +197,6 @@ func (d *Daemon) Call(ctx context.Context, method string, params json.RawMessage
 		}
 		return d.setModelEnabled(p.Slug, p.Enabled)
 
-	case "model.remove":
-		var p struct {
-			Slug string `json:"slug"`
-		}
-		if !parseParams(params, &p) || p.Slug == "" {
-			return control.Fail("Invalid parameters.")
-		}
-		return d.removeModel(p.Slug)
-
 	case "factory.apply":
 		message, err := catalog.ApplyFactoryCustomModels(d.isProviderEnabled)
 		d.invalidateFactory()
@@ -304,7 +295,8 @@ func serviceTypeFromParam(provider string) (auth.ServiceType, control.CallResult
 }
 
 // setModelEnabled records desired state only. The Factory config is not
-// touched until Apply (or model.remove) reconciles it.
+// touched until factory.apply reconciles it; the panel applies right after
+// every toggle, so turning a model off also removes it from Factory.
 func (d *Daemon) setModelEnabled(slug string, enabled bool) control.CallResult {
 	def, ok := catalog.FindDefinition(slug)
 	if !ok {
@@ -320,26 +312,6 @@ func (d *Daemon) setModelEnabled(slug string, enabled bool) control.CallResult {
 		state = "enabled"
 	}
 	return control.OK(def.DisplayName + " " + state + ". Apply Factory models to update the Factory config.")
-}
-
-// removeModel disables the model and reconciles the Factory config, which
-// deletes its DroidProxy entry. Apply only ever removes entries whose id
-// starts with "custom:droidproxy:", never other Factory models.
-func (d *Daemon) removeModel(slug string) control.CallResult {
-	def, ok := catalog.FindDefinition(slug)
-	if !ok {
-		return control.Fail("Unknown model: " + slug)
-	}
-	if err := prefs.SetModelEnabled(slug, false); err != nil {
-		return control.Fail("Failed to save model setting: " + err.Error())
-	}
-	message, err := catalog.ApplyFactoryCustomModels(d.isProviderEnabled)
-	d.invalidateFactory()
-	d.notifyStateChanged()
-	if err != nil {
-		return control.Fail(message).WithTitle(authResultTitle)
-	}
-	return control.OK(def.DisplayName + " removed from Factory.").WithTitle(authResultTitle)
 }
 
 // redeemReset spends one banked usage reset for the account. The panel

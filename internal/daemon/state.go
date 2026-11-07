@@ -34,9 +34,9 @@ var providerOrder = []providerInfo{
 	{auth.Codex, "icon-codex.png", "#74AA9C", control.KindStandard, ""},
 	{auth.Meta, "icon-meta.svg", "#0866FF", control.KindMeta, "Add Meta Muse accounts for automatic account failover."},
 	{auth.Antigravity, "icon-gemini.png", "#4285F4", control.KindStandard, "Uses your Antigravity subscription for the Antigravity-backed Gemini and Claude models."},
-	{auth.Kimi, "icon-kimi.svg", "#00BF91", control.KindStandard, ""},
+	{auth.Kimi, "icon-kimi.svg", "#1783FF", control.KindStandard, ""},
 	{auth.Junie, "icon-junie.svg", "#48E054", control.KindJunie, "Enter your JetBrains Junie API key to use your JetBrains AI subscription for Junie Opus 5.5 and Sol 6.1."},
-	{auth.Grok, "icon-grok.svg", "#1D9BF0", control.KindGrok, "Log in with SuperGrok / X Premium+ to use Grok 4.7 and Grok 4.7 Fast (no xAI API key)."},
+	{auth.Grok, "icon-grok.svg", "#FFFFFF", control.KindGrok, "Log in with SuperGrok / X Premium+ to use Grok 4.7 and Grok 4.7 Fast (no xAI API key)."},
 }
 
 // State assembles the full control API snapshot. It runs on HTTP handler

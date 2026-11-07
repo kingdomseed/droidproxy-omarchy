@@ -61,7 +61,7 @@ droidproxy uninstall --purge  # also removes DroidProxy's settings
 
 - **Bar panel** -- click the bar icon to open the panel: server, quota rings, accounts, Factory models, and the provider switches. The icon tint shows the server state. The panel is the only settings surface; there is no settings web page.
 - **Settings** -- the bar panel, the launcher entry, or `droidproxy open`. Server control, provider accounts, OAuth quota gauges, Factory models, remote access, and updates.
-- **Factory models** -- in the panel, **Factory custom models → Apply** writes DroidProxy's enabled models into `~/.factory/settings.json` (timestamped backup first). Each model can be switched off under its provider so it is never written, and **Remove** on an installed model deletes its DroidProxy entry from the Factory config. In Droid, use `/model` and search for "DroidProxy:".
+- **Factory models** -- in the panel, **Factory custom models → Apply** writes DroidProxy's enabled models into `~/.factory/settings.json` (timestamped backup first). Each model can be switched off under its provider; switching one off also deletes its DroidProxy entry from the Factory config, and switching it back on writes it again. In Droid, use `/model` and search for "DroidProxy:".
 - **Banked resets** -- Codex and Claude accounts with banked usage resets show the count next to their quota gauges. **Use reset** spends one, after a confirmation.
 
 See [SETUP.md](SETUP.md) for provider details and manual Factory configuration. **(OR use the 1-click options in the UI!)**
