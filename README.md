@@ -54,14 +54,15 @@ droidproxy uninstall --purge  # also removes DroidProxy's settings
 - **Remote access** -- Optional remote management with a secret key, and a configurable bind address (beta).
 
 <p align="center">
-  <img src="settings-screenshot.png" alt="DroidProxy Settings" width="420">
+  <img src="panel-screenshot.png" alt="DroidProxy bar panel" width="420">
 </p>
 
 ## Using it
 
-- **Bar panel** -- click the bar icon to open the panel: server, quota rings, accounts, Factory models, and the provider switches. The icon tint shows the server state. `droidproxy open --web` still opens the settings page at `http://127.0.0.1:8320`.
+- **Bar panel** -- click the bar icon to open the panel: server, quota rings, accounts, Factory models, and the provider switches. The icon tint shows the server state. The panel is the only settings surface; there is no settings web page.
 - **Settings** -- the bar panel, the launcher entry, or `droidproxy open`. Server control, provider accounts, OAuth quota gauges, Factory models, remote access, and updates.
-- **Factory models** -- Settings → **Factory custom models → Apply** writes DroidProxy's models into `~/.factory/settings.json` (timestamped backup first). In Droid, use `/model` and search for "DroidProxy:".
+- **Factory models** -- in the panel, **Factory custom models → Apply** writes DroidProxy's enabled models into `~/.factory/settings.json` (timestamped backup first). Each model can be switched off under its provider so it is never written, and **Remove** on an installed model deletes its DroidProxy entry from the Factory config. In Droid, use `/model` and search for "DroidProxy:".
+- **Banked resets** -- Codex and Claude accounts with banked usage resets show the count next to their quota gauges. **Use reset** spends one, after a confirmation.
 
 See [SETUP.md](SETUP.md) for provider details and manual Factory configuration. **(OR use the 1-click options in the UI!)**
 
@@ -70,7 +71,7 @@ See [SETUP.md](SETUP.md) for provider details and manual Factory configuration. 
 ```
 droidproxy status              show server and provider status
 droidproxy start|stop|restart  control the proxy servers
-droidproxy open [--web]       open the bar panel, or the settings page with --web
+droidproxy open                open the bar panel
 droidproxy login <provider>    add an account (claude, codex, antigravity, grok, meta)
 droidproxy update [check|install]
 droidproxy rollback            go back to the previously installed version
@@ -85,7 +86,7 @@ Droid ──► :8317 ThinkingProxy ──► :8318 CLIProxyAPI ──► provid
                     └──► api.x.ai / cli-chat-proxy.grok.com / api.meta.ai (Grok, Muse Responses)
 ```
 
-- `droidproxy serve` runs as a systemd user service. ThinkingProxy on `localhost:8317`, bundled CLIProxyAPI on `127.0.0.1:8318`, settings web app on `127.0.0.1:8320`.
+- `droidproxy serve` runs as a systemd user service. ThinkingProxy on `localhost:8317`, bundled CLIProxyAPI on `127.0.0.1:8318`.
 - The Omarchy shell plugin talks to the service over a private Unix socket (`$XDG_RUNTIME_DIR/droidproxy/control.sock`). See [docs/control-api.md](docs/control-api.md).
 - Service logs: `journalctl --user -u droidproxy`. Per-request reasoning log: `~/.local/state/droidproxy/droidproxy-debug.log`.
 

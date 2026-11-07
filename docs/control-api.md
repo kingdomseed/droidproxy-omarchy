@@ -4,10 +4,9 @@ The `droidproxy serve` daemon exposes a local control API. The Omarchy shell
 plugin, the `droidproxy` CLI, and scripts all use it. It replaces the macOS
 app's in-process calls between `AppDelegate`, `SettingsView`, and the managers.
 
-The bar panel talks to this API through `droidproxy ctl`. The settings web app
-talks to the same daemon over plain localhost HTTP instead — see
-[Settings web UI](#settings-web-ui). `droidproxy open` opens the panel;
-`droidproxy open --web` opens the web app.
+The bar panel talks to this API through `droidproxy ctl`. `droidproxy open`
+opens the panel. There is no settings web app; the panel is the only
+settings surface.
 
 ## Transport
 
@@ -18,21 +17,6 @@ talks to the same daemon over plain localhost HTTP instead — see
 - `GET  /v1/events` streams newline-delimited JSON (NDJSON) [events](#events).
 - `POST /v1/call/<method>` runs an [action](#actions). The body is a JSON
   object of parameters (may be empty `{}`).
-
-## Settings web UI
-
-The daemon also serves the settings web app on `http://127.0.0.1:8320`
-(loopback only — remote-management settings never apply to it). The port is
-fixed; a bind failure is logged but does not stop the daemon.
-
-- `GET  /` serves the embedded single-page app (plus `/app.js`,
-  `/styles.css`, `/icons/*`).
-- `GET  /api/state` returns the current [state snapshot](#state-snapshot).
-- `GET  /api/events` streams server-sent events with the same
-  [events](#events) payloads as JSON `data:` frames (plus `: ping` heartbeats).
-- `POST /api/call/<method>` runs an [action](#actions).
-
-The bar icon (`open.webui`) and `droidproxy open` both `xdg-open` this URL.
 
 ## CLI wrapper (what the QML plugin uses)
 
@@ -196,20 +180,22 @@ All keys are always present. Strings are never `null`; use `""`.
 | `server.restart` | – | Stop then start. |
 | `server.copyUrl` | – | Copy `server.url` with `wl-copy`, then notify "Copied". |
 | `open.dashboard` | – | `xdg-open` the management dashboard. |
-| `open.webui` | – | `xdg-open` the settings web app (`http://127.0.0.1:8320`). |
 | `open.authFolder` | – | `xdg-open ~/.cli-proxy-api`. |
 | `open.logsFolder` | – | Create and `xdg-open ~/.cli-proxy-api/logs`. |
 | `open.url` | `{"url"}` | `xdg-open` an http(s) URL (verification links, footer links). |
 | `clipboard.copy` | `{"text"}` | Copy arbitrary text (device codes). |
 | `provider.setEnabled` | `{"provider","enabled"}` | Provider toggle. Meta cancels sign-in on disable and refreshes keys on enable. |
 | `provider.connect` | `{"provider"}` | "Add Account"/"Connect". claude/codex/antigravity/kimi run the CLIProxyAPI login flow; grok and meta start their device-code flows. junie requires `junie.saveKey` instead and returns an error here. |
-| `provider.cancelAuth` | `{"provider"}` | Cancel an in-progress grok/meta sign-in. |
+| `provider.cancelAuth` | `{"provider"}` | Cancel an in-progress sign-in. Browser flows terminate the login helper the daemon owns, releasing its callback port. |
 | `account.toggleDisabled` | `{"provider","accountId"}` | Enable/disable one account (refuses to disable the last enabled one). |
 | `account.remove` | `{"provider","accountId"}` | Remove an account (restarts the backend around the delete, like the macOS app). |
 | `junie.saveKey` | `{"apiKey"}` | Write `~/.cli-proxy-api/junie.json` (0600). |
 | `settings.set` | `{"key","value"}` | Set one key from `state.settings` (see below). |
-| `factory.apply` | – | Apply/Re-apply Factory custom models (backup first). |
+| `model.setEnabled` | `{"slug","enabled"}` | Enable/disable one catalog model (desired state only; the Factory config changes on `factory.apply`). |
+| `model.remove` | `{"slug"}` | Disable the model and apply, which deletes its `custom:droidproxy:` entry from the Factory config. Other Factory models are never touched. |
+| `factory.apply` | – | Apply/Re-apply Factory custom models (backup first). Writes only enabled providers' enabled models. |
 | `usage.refresh` | – | Refresh OAuth quota windows. |
+| `usage.redeemReset` | `{"provider","accountId"}` | Spend one banked usage reset (Codex and Claude). The panel confirms first; never automatic. |
 | `usage.copyCurl` | `{"provider","accountId"}` | Copy a `curl` for that account's [usage endpoint](#usage-endpoint) (what clicking a quota gauge does). |
 | `update.check` | – | Check for updates now. |
 | `update.install` | – | Download, verify, install the available update, then restart. |
@@ -223,7 +209,6 @@ All keys are always present. Strings are never `null`; use `""`.
 | `allowRemote`, `secretKey`, `bindAddress`, `verboseLogging` | bool/string | Regenerate merged config (CLIProxyAPI hot-reloads). |
 | `sequentialAccountFailover` | bool | `setSequentialAccountFailover` (regenerate config). |
 | `beta` | bool | Stored; beta-gated rows (bind address). |
-| `oledTheme`, `backgroundOpacity` | bool/number | Stored; legacy QML panel appearance (the web UI is always OLED black). |
 | `gpt6AstraFastMode`, `gpt61SolFastMode`, `gpt61TerraFastMode`, `gpt6LunaFastMode` | bool | ThinkingProxy fast mode. |
 | `metaContributorMode` | bool | Stored; affects Factory model apply. |
 | `windowPrimerEnabled.<p>`, `windowPrimerMinutes.<p>` (`<p>` is `claude`, `codex` or `meta`) | bool / int 0–1439 | "Auto-start daily": once a day at that local time (up to 2 hours late, retried every 5 minutes on failure) the daemon sends one tiny request per enabled account, so the 5-hour window is already running when work starts. Claude and Codex go through ThinkingProxy; Meta goes straight to `api.meta.ai` with each account's key. |

@@ -14,7 +14,7 @@ import (
 )
 
 // EndpointPath is answered by ThinkingProxy on :8317 itself, never forwarded.
-// The web UI's gauges copy a curl for it, so an agent can poll its own quota
+// The panel's gauges copy a curl for it, so an agent can poll its own quota
 // and pause before it runs dry (Droid stops retrying failed requests after
 // about 30 seconds).
 const EndpointPath = "/droidproxy/usage"

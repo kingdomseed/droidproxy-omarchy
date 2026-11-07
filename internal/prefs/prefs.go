@@ -26,22 +26,18 @@ const (
 	KeyAllowRemote               = "allowRemote"
 	KeySecretKey                 = "secretKey"
 	KeyBindAddress               = "bindAddress"
-	KeyOLEDTheme                 = "oledTheme"
-	KeyBackgroundOpacity         = "backgroundOpacity"
 	KeyBetaFlag                  = "BETA_FLAG"
 	KeyVerboseLogging            = "verboseLogging"
 	KeySequentialAccountFailover = "sequentialAccountFailover"
 	KeyEnabledProviders          = "enabledProviders"
+	KeyEnabledModels             = "enabledModels"
 	KeyAutoCheckUpdates          = "autoCheckUpdates"
 	KeyAutoInstallUpdates        = "autoInstallUpdates"
 	KeyLastUpdateCheck           = "lastUpdateCheck"
 	KeySkippedVersion            = "skippedVersion"
 )
 
-const (
-	DefaultBindAddress       = "127.0.0.1"
-	DefaultBackgroundOpacity = 0.55
-)
+const DefaultBindAddress = "127.0.0.1"
 
 // Store is a JSON-backed preferences store.
 type Store struct {
@@ -200,7 +196,6 @@ func GPT6LunaFastMode() bool    { return Shared().Bool(KeyGPT6LunaFastMode, fals
 func MetaContributorMode() bool { return Shared().Bool(KeyMetaContributorMode, false) }
 func AllowRemote() bool         { return Shared().Bool(KeyAllowRemote, false) }
 func SecretKey() string         { return Shared().String(KeySecretKey, "") }
-func OLEDTheme() bool           { return Shared().Bool(KeyOLEDTheme, false) }
 func BetaFlag() bool            { return Shared().Bool(KeyBetaFlag, false) }
 func VerboseLogging() bool      { return Shared().Bool(KeyVerboseLogging, false) }
 func SequentialAccountFailover() bool {
@@ -208,12 +203,6 @@ func SequentialAccountFailover() bool {
 }
 func AutoCheckUpdates() bool   { return Shared().Bool(KeyAutoCheckUpdates, true) }
 func AutoInstallUpdates() bool { return Shared().Bool(KeyAutoInstallUpdates, false) }
-
-// BackgroundOpacity is the legacy QML panel background opacity (0.10–1.0).
-// The web UI is always OLED black and ignores it.
-func BackgroundOpacity() float64 {
-	return Shared().Float(KeyBackgroundOpacity, DefaultBackgroundOpacity)
-}
 
 // BindAddress is only honored when the beta flag is on. Empty or multi-line
 // values are rejected so they can't produce an invalid listener host or inject

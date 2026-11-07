@@ -32,7 +32,6 @@ import (
 	"github.com/nikships/droidproxy-omarchy/internal/proxy"
 	"github.com/nikships/droidproxy-omarchy/internal/updater"
 	"github.com/nikships/droidproxy-omarchy/internal/usage"
-	"github.com/nikships/droidproxy-omarchy/internal/webui"
 )
 
 // ProxyPort is the user-facing proxy port (ThinkingProxy).
@@ -77,7 +76,6 @@ type Daemon struct {
 	metaAuth  *meta.AuthManager
 	updater   *updater.Updater
 	server    *control.Server
-	web       *webui.Server
 
 	monitor *auth.DirectoryMonitor
 
@@ -98,6 +96,7 @@ type Daemon struct {
 	// Caches.
 	factoryDirty     bool
 	factoryInstalled bool
+	factoryIDs       map[string]bool
 	launchEnabled    bool
 	launchCheckedAt  time.Time
 	cliproxyVersion  string
@@ -141,7 +140,6 @@ func (d *Daemon) run() error {
 	})
 
 	d.server = control.NewServer(d)
-	d.web = webui.NewServer(d)
 	d.wireEvents()
 
 	d.authMgr.CheckAuthStatus()
@@ -161,15 +159,9 @@ func (d *Daemon) run() error {
 	d.updater.StartScheduled(d.ctx)
 
 	// The control API comes up last: once it answers, clients expect every
-	// action to work. The settings web UI serves alongside it; a UI bind
-	// failure is logged but not fatal (the proxy itself still works).
+	// action to work.
 	apiErr := make(chan error, 1)
 	go func() { apiErr <- d.server.ListenAndServe(d.ctx, "") }()
-	go func() {
-		if err := d.web.ListenAndServe(d.ctx); err != nil {
-			logx.Logf("[Daemon] Settings web UI failed to start: %v", err)
-		}
-	}()
 
 	select {
 	case <-d.ctx.Done():
@@ -193,7 +185,6 @@ func (d *Daemon) shutdown() {
 	d.proxy.Stop()
 	d.backend.Stop()
 	_ = d.server.Close()
-	_ = d.web.Close()
 }
 
 // wireEvents bridges the in-process event bus (the NotificationCenter
@@ -418,19 +409,13 @@ func (d *Daemon) notifyStateChanged() {
 	if d.server != nil {
 		d.server.NotifyStateChanged()
 	}
-	if d.web != nil {
-		d.web.NotifyStateChanged()
-	}
 }
 
 // postMessageEvent broadcasts an async result to control API clients (the
-// macOS app's "Authentication Result" alerts) and web UI browsers.
+// macOS app's "Authentication Result" alerts).
 func (d *Daemon) postMessageEvent(title, body, level string) {
 	if d.server != nil {
 		d.server.PostMessage(title, body, level)
-	}
-	if d.web != nil {
-		d.web.PostMessage(title, body, level)
 	}
 }
 

@@ -161,8 +161,6 @@ func (d *Daemon) State() control.State {
 			Beta:                      prefs.BetaFlag(),
 			VerboseLogging:            prefs.VerboseLogging(),
 			SequentialAccountFailover: prefs.SequentialAccountFailover(),
-			OLEDTheme:                 prefs.OLEDTheme(),
-			BackgroundOpacity:         prefs.BackgroundOpacity(),
 			GPT6AstraFastMode:         prefs.GPT6AstraFastMode(),
 			GPT61SolFastMode:          prefs.GPT61SolFastMode(),
 			GPT61TerraFastMode:        prefs.GPT61TerraFastMode(),

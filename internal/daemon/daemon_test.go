@@ -266,9 +266,6 @@ func TestDaemonStateBasics(t *testing.T) {
 	if !st.Settings.LaunchAtLogin {
 		t.Error("launchAtLogin should reflect the enabled unit")
 	}
-	if st.Settings.BackgroundOpacity != 0.55 {
-		t.Errorf("backgroundOpacity = %v", st.Settings.BackgroundOpacity)
-	}
 	if !st.Settings.AutoCheckUpdates {
 		t.Error("autoCheckUpdates should default on")
 	}
@@ -313,11 +310,11 @@ func TestDaemonServerToggle(t *testing.T) {
 func TestDaemonSettingsAndDesktopActions(t *testing.T) {
 	client, desk := startTestDaemon(t)
 
-	if res := callOK(t, client, "settings.set", map[string]any{"key": "oledTheme", "value": true}); !res.OK {
-		t.Fatalf("settings.set oledTheme = %+v", res)
+	if res := callOK(t, client, "settings.set", map[string]any{"key": "verboseLogging", "value": true}); !res.OK {
+		t.Fatalf("settings.set verboseLogging = %+v", res)
 	}
-	if st, _ := client.State(); !st.Settings.OLEDTheme {
-		t.Error("oledTheme did not persist")
+	if st, _ := client.State(); !st.Settings.VerboseLogging {
+		t.Error("verboseLogging did not persist")
 	}
 
 	if res := callOK(t, client, "settings.set", map[string]any{"key": "launchAtLogin", "value": false}); !res.OK {
@@ -350,7 +347,7 @@ func TestDaemonSettingsAndDesktopActions(t *testing.T) {
 	if texts := desk.clipboardTexts(); len(texts) == 0 || texts[len(texts)-1] != wantCurl {
 		t.Errorf("clipboard = %v, want %s", texts, wantCurl)
 	}
-	// The web UI shows its checkmark and toast only for an ok result.
+	// The panel shows its checkmark and toast only for an ok result.
 	desk.mu.Lock()
 	desk.clipboardFails = true
 	desk.mu.Unlock()

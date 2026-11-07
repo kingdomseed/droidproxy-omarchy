@@ -158,8 +158,7 @@ Item {
     }
   }
 
-  // Callers that used to open the settings web app (droidproxy's desktop
-  // IPC, and the old bar widget) land on the bar panel instead.
+  // The service IPC target ("droidproxy") opens the bar panel.
   Process { id: panelProc }
 
   function openPanel() {
@@ -172,8 +171,7 @@ Item {
   IpcHandler {
     target: "droidproxy"
 
-    function openSettings(): string { return root.openPanel() }
-    function openWebUI(): string { return root.openPanel() }
+    function open(): string { return root.openPanel() }
     function ping(): string { return "ok" }
   }
 

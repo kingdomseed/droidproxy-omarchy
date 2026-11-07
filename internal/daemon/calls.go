@@ -18,7 +18,6 @@ import (
 	"github.com/nikships/droidproxy-omarchy/internal/paths"
 	"github.com/nikships/droidproxy-omarchy/internal/prefs"
 	"github.com/nikships/droidproxy-omarchy/internal/usage"
-	"github.com/nikships/droidproxy-omarchy/internal/webui"
 )
 
 // authResultTitle is the dialog title the macOS app used for every
@@ -86,12 +85,6 @@ func (d *Daemon) Call(ctx context.Context, method string, params json.RawMessage
 		}
 		if err := desktop.OpenPath(paths.BackendLogsDir()); err != nil {
 			return control.Fail("Could not open the folder: " + err.Error())
-		}
-		return control.OK("")
-
-	case "open.webui":
-		if err := desktop.OpenURL(webui.URL()); err != nil {
-			return control.Fail("Could not open the settings page: " + err.Error())
 		}
 		return control.OK("")
 
@@ -722,26 +715,6 @@ func (d *Daemon) setSetting(key string, value json.RawMessage) control.CallResul
 			return fail(err)
 		}
 		d.invalidateFactory()
-
-	case "oledTheme":
-		if err := setBoolPref(prefs.KeyOLEDTheme, value); err != nil {
-			return fail(err)
-		}
-
-	case "backgroundOpacity":
-		var opacity float64
-		if len(value) == 0 || json.Unmarshal(value, &opacity) != nil {
-			return control.Fail("Invalid value.")
-		}
-		if opacity < 0.10 {
-			opacity = 0.10
-		}
-		if opacity > 1.0 {
-			opacity = 1.0
-		}
-		if err := prefs.Shared().Set(prefs.KeyBackgroundOpacity, opacity); err != nil {
-			return fail(err)
-		}
 
 	case "gpt6AstraFastMode":
 		if err := setBoolPref(prefs.KeyGPT6AstraFastMode, value); err != nil {

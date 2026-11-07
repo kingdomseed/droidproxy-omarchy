@@ -44,28 +44,26 @@ type ServerState struct {
 }
 
 type Settings struct {
-	LaunchAtLogin             bool    `json:"launchAtLogin"`
-	AllowRemote               bool    `json:"allowRemote"`
-	SecretKey                 string  `json:"secretKey"`
-	BindAddress               string  `json:"bindAddress"`
-	Beta                      bool    `json:"beta"`
-	VerboseLogging            bool    `json:"verboseLogging"`
-	SequentialAccountFailover bool    `json:"sequentialAccountFailover"`
-	OLEDTheme                 bool    `json:"oledTheme"`
-	BackgroundOpacity         float64 `json:"backgroundOpacity"`
-	GPT6AstraFastMode         bool    `json:"gpt6AstraFastMode"`
-	GPT61SolFastMode          bool    `json:"gpt61SolFastMode"`
-	GPT61TerraFastMode        bool    `json:"gpt61TerraFastMode"`
-	GPT6LunaFastMode          bool    `json:"gpt6LunaFastMode"`
-	MetaContributorMode       bool    `json:"metaContributorMode"`
-	WindowPrimerEnabledClaude bool    `json:"windowPrimerEnabled.claude"`
-	WindowPrimerMinutesClaude int     `json:"windowPrimerMinutes.claude"`
-	WindowPrimerEnabledCodex  bool    `json:"windowPrimerEnabled.codex"`
-	WindowPrimerMinutesCodex  int     `json:"windowPrimerMinutes.codex"`
-	WindowPrimerEnabledMeta   bool    `json:"windowPrimerEnabled.meta"`
-	WindowPrimerMinutesMeta   int     `json:"windowPrimerMinutes.meta"`
-	AutoCheckUpdates          bool    `json:"autoCheckUpdates"`
-	AutoInstallUpdates        bool    `json:"autoInstallUpdates"`
+	LaunchAtLogin             bool   `json:"launchAtLogin"`
+	AllowRemote               bool   `json:"allowRemote"`
+	SecretKey                 string `json:"secretKey"`
+	BindAddress               string `json:"bindAddress"`
+	Beta                      bool   `json:"beta"`
+	VerboseLogging            bool   `json:"verboseLogging"`
+	SequentialAccountFailover bool   `json:"sequentialAccountFailover"`
+	GPT6AstraFastMode         bool   `json:"gpt6AstraFastMode"`
+	GPT61SolFastMode          bool   `json:"gpt61SolFastMode"`
+	GPT61TerraFastMode        bool   `json:"gpt61TerraFastMode"`
+	GPT6LunaFastMode          bool   `json:"gpt6LunaFastMode"`
+	MetaContributorMode       bool   `json:"metaContributorMode"`
+	WindowPrimerEnabledClaude bool   `json:"windowPrimerEnabled.claude"`
+	WindowPrimerMinutesClaude int    `json:"windowPrimerMinutes.claude"`
+	WindowPrimerEnabledCodex  bool   `json:"windowPrimerEnabled.codex"`
+	WindowPrimerMinutesCodex  int    `json:"windowPrimerMinutes.codex"`
+	WindowPrimerEnabledMeta   bool   `json:"windowPrimerEnabled.meta"`
+	WindowPrimerMinutesMeta   int    `json:"windowPrimerMinutes.meta"`
+	AutoCheckUpdates          bool   `json:"autoCheckUpdates"`
+	AutoInstallUpdates        bool   `json:"autoInstallUpdates"`
 }
 
 type PathsInfo struct {
