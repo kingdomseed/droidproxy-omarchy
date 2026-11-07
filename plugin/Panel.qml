@@ -952,7 +952,7 @@ Panel {
         confirmText: root.confirmResetAccount !== "" ? strings.t("quota.useReset") : strings.t("account.remove")
         foreground: root.foreground
         fontFamily: root.fontFamily
-        onOpenedChanged: if (opened) selectedIndex = 1
+        onOpenedChanged: if (opened) selectedIndex = 0
         onCanceled: root.cancelRemove()
         onConfirmed: root.confirmRemove()
       }
