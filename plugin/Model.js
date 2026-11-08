@@ -307,3 +307,13 @@ function entryIndex(entries, id) {
   for (var i = 0; i < entries.length; i++) if (entries[i].id === id) return i
   return -1
 }
+
+// The cursor id after stepping dy entries from cursorId, clamped to
+// the list; an unknown cursor restarts at the first entry.
+function steppedCursorId(entries, cursorId, dy) {
+  if (!entries || entries.length === 0) return cursorId
+  var index = entryIndex(entries, cursorId)
+  if (index < 0) index = 0
+  else index = Math.max(0, Math.min(entries.length - 1, index + dy))
+  return entries[index].id
+}

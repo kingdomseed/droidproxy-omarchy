@@ -40,17 +40,22 @@ Panel {
   property bool advancedOpen: false
   property bool cursorActive: false
   property string cursorId: "server"
-  property bool editing: false
+  // Interaction mode: "browse" (cursor keys), "edit" (the Junie key
+  // field owns the keyboard), "confirm" (modal dialog). One property,
+  // changed only at the transition points, so a key is never read
+  // against a stale mix of flags. QML's built-in Item states are
+  // per-item property sets for visuals; they cannot hold the
+  // behavioral side (key dispatch, service calls) and would fight
+  // the bindings below, so the machine is this plain property.
+  property string mode: "browse"
+  // The action awaiting confirmation while mode is "confirm":
+  // { kind: "remove"|"reset", provider, accountId, name }, else null.
+  property var confirmRequest: null
   property bool justApplied: false
   property var optimistic: ({})
-  property string confirmProvider: ""
-  property string confirmAccount: ""
-  property string confirmResetProvider: ""
-  property string confirmResetAccount: ""
-  property string confirmName: ""
   property string copiedUsageId: ""
 
-  readonly property bool confirming: confirmAccount !== "" || confirmResetAccount !== ""
+  readonly property bool confirming: mode === "confirm"
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
   readonly property color urgent: bar ? bar.urgent : Commons.Color.urgent
   readonly property color dim: Qt.darker(foreground, 1.45)
@@ -64,6 +69,9 @@ Panel {
     return live
   }
 
+  // expect/drop rebuild the map instead of mutating it: QML notifies
+  // var properties on identity change only, so an in-place edit would
+  // never reach the bindings that read flag().
   function expect(key, value) {
     var next = {}
     for (var name in optimistic) next[name] = optimistic[name]
@@ -78,6 +86,19 @@ Panel {
   }
 
   onDpStateChanged: optimistic = ({})
+
+  // Text fields report focus here: edit mode follows the keyboard
+  // owner, and losing it returns to browse (unless a dialog took over).
+  function fieldFocusChanged(active) {
+    if (active) mode = "edit"
+    else if (mode === "edit") {
+      mode = "browse"
+      // Escape leaves no item focused, and the key catcher only sees
+      // keys traveling the focused item's chain: hand focus back, or
+      // browse mode has no keyboard until the panel reopens.
+      if (keyCatcherItem) keyCatcherItem.forceActiveFocus()
+    }
+  }
 
   function entries() {
     return Model.cursorEntries(dpState, { advanced: advancedOpen })
@@ -99,6 +120,7 @@ Panel {
   // The Flickable lives inside KeyboardPanel's loader scope, so root
   // code reaches it through this bridge (set on its completion).
   property var flick: null
+  property var keyCatcherItem: null
   // Same bridge for the Junie key field, plus its draft: provider
   // delegates are rebuilt on every state snapshot, so the draft must
   // live here or an unrelated state event wipes a half-typed key.
@@ -131,10 +153,7 @@ Panel {
       cursorActive = true
       return
     }
-    var index = Model.entryIndex(list, cursorId)
-    if (index < 0) index = 0
-    else index = Math.max(0, Math.min(list.length - 1, index + dy))
-    cursorId = list[index].id
+    cursorId = Model.steppedCursorId(list, cursorId, dy)
   }
 
   function callSetting(key, value) {
@@ -201,9 +220,15 @@ Panel {
 
   function askRemove(providerId, account) {
     if (!account) return
-    confirmProvider = providerId
-    confirmAccount = account.id
-    confirmName = account.displayName
+    askConfirm({ kind: "remove", provider: providerId, accountId: account.id, name: account.displayName })
+  }
+
+  function askConfirm(request) {
+    // Shed field focus before going modal: edit mode blocks the key
+    // catcher, and the focus loss returns mode to "browse" first.
+    if (junieFieldItem) junieFieldItem.focus = false
+    confirmRequest = request
+    mode = "confirm"
   }
 
   function usageForAccount(providerId, account) {
@@ -241,40 +266,26 @@ Panel {
 
   function askUseReset(account) {
     if (!account || !account.resetCount) return
-    confirmProvider = ""
-    confirmAccount = ""
-    confirmResetProvider = account.provider
-    confirmResetAccount = account.id
-    confirmName = account.email || account.providerName || account.provider
+    askConfirm({ kind: "reset", provider: account.provider, accountId: account.id, name: account.email || account.providerName || account.provider })
   }
 
-  function cancelRemove() {
-    confirmProvider = ""
-    confirmAccount = ""
-    confirmResetProvider = ""
-    confirmResetAccount = ""
-    confirmName = ""
+  function cancelConfirm() {
+    confirmRequest = null
+    if (mode === "confirm") mode = "browse"
   }
 
-  function confirmRemove() {
-    if (!service || !confirming) return
-    if (confirmResetAccount !== "") {
-      var resetProvider = confirmResetProvider
-      var resetAccount = confirmResetAccount
-      cancelRemove()
-      service.call("usage.redeemReset", { provider: resetProvider, accountId: resetAccount }, function(result) {
-        if (!result.ok && result.error) service.showNotice(result.error)
-        else if (result.message) service.showNotice(result.message)
-      })
-      return
-    }
-    var providerId = confirmProvider
-    var accountId = confirmAccount
-    cancelRemove()
-    service.call("account.remove", { provider: providerId, accountId: accountId }, function(result) {
+  function confirmAction() {
+    if (!service || !confirmRequest) return
+    var request = confirmRequest
+    cancelConfirm()
+    var done = function(result) {
       if (!result.ok && result.error) service.showNotice(result.error)
       else if (result.message) service.showNotice(result.message)
-    })
+    }
+    if (request.kind === "reset")
+      service.call("usage.redeemReset", { provider: request.provider, accountId: request.accountId }, done)
+    else
+      service.call("account.remove", { provider: request.provider, accountId: request.accountId }, done)
   }
 
   function applyFactory() {
@@ -485,38 +496,40 @@ Panel {
 
     content: PanelKeyCatcher {
       id: keyCatcher
+      Component.onCompleted: root.keyCatcherItem = keyCatcher
       anchors.fill: parent
       implicitHeight: column.implicitHeight
-      blocked: root.editing
+      blocked: root.mode === "edit"
       onMoveRequested: function(dx, dy) {
-        if (root.confirming) {
+        if (root.mode === "confirm") {
           if (dx !== 0) confirmDialog.selectedIndex = confirmDialog.selectedIndex === 0 ? 1 : 0
-          return
+        } else if (root.mode === "browse") {
+          root.moveCursor(dx, dy)
         }
-        root.moveCursor(dx, dy)
       }
       // While the dialog is open, activation follows its selection:
       // index 0 is Cancel, index 1 is the destructive action (the stock
       // ConfirmDialog.handleKey contract). Confirming unconditionally
       // here would make Enter on Cancel delete the account.
       onActivateRequested: function() {
-        if (!root.confirming) { root.activate(); return }
-        if (confirmDialog.selectedIndex === 1) root.confirmRemove()
-        else root.cancelRemove()
-      }
-      onCloseRequested: root.confirming ? root.cancelRemove() : root.close()
-      onDeleteRequested: if (!root.confirming) root.removeFocusedAccount()
-      onTabRequested: function(direction) {
-        if (root.confirming) {
-          confirmDialog.selectedIndex = confirmDialog.selectedIndex === 0 ? 1 : 0
-          return
+        if (root.mode === "confirm") {
+          if (confirmDialog.selectedIndex === 1) root.confirmAction()
+          else root.cancelConfirm()
+        } else if (root.mode === "browse") {
+          root.activate()
         }
-        root.switchPanel(direction)
+      }
+      onCloseRequested: root.mode === "confirm" ? root.cancelConfirm() : root.close()
+      onDeleteRequested: if (root.mode === "browse") root.removeFocusedAccount()
+      onTabRequested: function(direction) {
+        if (root.mode === "confirm")
+          confirmDialog.selectedIndex = confirmDialog.selectedIndex === 0 ? 1 : 0
+        else if (root.mode === "browse")
+          root.switchPanel(direction)
       }
       onTextKey: function(text) {
-        if (text === "r" || text === "R") {
-          if (root.service) root.service.call("usage.refresh", {})
-        }
+        if (root.mode !== "browse") return
+        if ((text === "r" || text === "R") && root.service) root.service.call("usage.refresh", {})
       }
 
       Flickable {
@@ -841,10 +854,9 @@ Panel {
               placeholderText: strings.t("setting.secret")
               foreground: root.foreground
               font.family: root.fontFamily
-              onActiveFocusChanged: root.editing = activeFocus
+              onActiveFocusChanged: root.fieldFocusChanged(activeFocus)
               Keys.onEscapePressed: function(event) {
                 focus = false
-                root.editing = false
                 event.accepted = true
               }
               onAccepted: {
@@ -882,10 +894,9 @@ Panel {
               placeholderText: root.bindAddress
               foreground: root.foreground
               font.family: root.fontFamily
-              onActiveFocusChanged: root.editing = activeFocus
+              onActiveFocusChanged: root.fieldFocusChanged(activeFocus)
               Keys.onEscapePressed: function(event) {
                 focus = false
-                root.editing = false
                 event.accepted = true
               }
               onAccepted: root.callSetting("bindAddress", text)
@@ -1009,14 +1020,14 @@ Panel {
         id: confirmDialog
         anchors.fill: parent
         z: 3
-        opened: root.confirming
-        message: root.confirmResetAccount !== "" ? strings.t("quota.useResetConfirm").arg(root.confirmName) : strings.t("account.removeConfirm").arg(root.confirmName)
-        confirmText: root.confirmResetAccount !== "" ? strings.t("quota.useReset") : strings.t("account.remove")
+        opened: root.mode === "confirm"
+        message: root.confirmRequest && root.confirmRequest.kind === "reset" ? strings.t("quota.useResetConfirm").arg(root.confirmRequest.name) : strings.t("account.removeConfirm").arg(root.confirmRequest ? root.confirmRequest.name : "")
+        confirmText: root.confirmRequest && root.confirmRequest.kind === "reset" ? strings.t("quota.useReset") : strings.t("account.remove")
         foreground: root.foreground
         fontFamily: root.fontFamily
         onOpenedChanged: if (opened) selectedIndex = 0
-        onCanceled: root.cancelRemove()
-        onConfirmed: root.confirmRemove()
+        onCanceled: root.cancelConfirm()
+        onConfirmed: root.confirmAction()
       }
     }
   }
@@ -1501,10 +1512,9 @@ Panel {
           placeholderText: strings.t("junie.placeholder")
           foreground: root.foreground
           font.family: root.fontFamily
-          onActiveFocusChanged: root.editing = activeFocus
+          onActiveFocusChanged: root.fieldFocusChanged(activeFocus)
           Keys.onEscapePressed: function(event) {
             focus = false
-            root.editing = false
             event.accepted = true
           }
           onAccepted: root.saveJunie(junieField)
