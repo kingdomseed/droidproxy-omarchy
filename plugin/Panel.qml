@@ -121,6 +121,8 @@ Panel {
   // code reaches it through this bridge (set on its completion).
   property var flick: null
   property var keyCatcherItem: null
+  property var secretFieldItem: null
+  property var bindFieldItem: null
   // Same bridge for the Junie key field, plus its draft: provider
   // delegates are rebuilt on every state snapshot, so the draft must
   // live here or an unrelated state event wipes a half-typed key.
@@ -388,6 +390,8 @@ Panel {
     else if (entry.kind === "update-install") service.call("update.install", {}, function(result) { root.report(result, result.message || "") })
     else if (entry.kind === "advanced") advancedOpen = !advancedOpen
     else if (entry.kind === "junie" && junieFieldItem) junieFieldItem.forceActiveFocus()
+    else if (entry.kind === "secret" && secretFieldItem) secretFieldItem.forceActiveFocus()
+    else if (entry.kind === "bind" && bindFieldItem) bindFieldItem.forceActiveFocus()
   }
 
   function removeFocusedAccount() {
@@ -848,7 +852,11 @@ Panel {
             }
             TextField {
               id: secretField
+              Component.onCompleted: root.secretFieldItem = secretField
               visible: root.advancedOpen
+              hasCursor: root.hot("secret")
+              onHasCursorChanged: if (hasCursor) root.revealItem(this)
+              onHoveredChanged: if (hovered) root.aim("secret")
               width: parent.width
               password: true
               placeholderText: strings.t("setting.secret")
@@ -889,7 +897,11 @@ Panel {
             }
             TextField {
               id: bindField
+              Component.onCompleted: root.bindFieldItem = bindField
               visible: root.advancedOpen && root.betaOn
+              hasCursor: root.hot("bind")
+              onHasCursorChanged: if (hasCursor) root.revealItem(this)
+              onHoveredChanged: if (hovered) root.aim("bind")
               width: parent.width
               placeholderText: root.bindAddress
               foreground: root.foreground
