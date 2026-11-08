@@ -48,7 +48,7 @@ droidproxy uninstall --purge  # also removes DroidProxy's settings
 - **Every model, every reasoning level** -- Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 5.5, GPT 6 Astra, GPT 6.1 Sol, GPT 6.1 Terra, GPT 6 Luna, Gemini 4 Argon, Gemini 3.8 Flash, and more — registered as Factory custom models with their full set of native reasoning levels. Pick the effort per session in Droid's model selector.
 - **Fast Mode** -- Optional `service_tier=priority` for GPT 6 Astra, GPT 6.1 Sol, GPT 6.1 Terra, and GPT 6 Luna. Grok 4.7 Fast is a separate SuperGrok model (`grok-4.7-build-fast`).
 - **Account failover** -- Round-robin by default, or sequential failover that rides one account until its quota runs out.
-- **Usage tracking** -- Claude, Codex, Grok, and Meta Muse OAuth quota windows (5-hour + weekly) as ring gauges in the bar panel, just like the Mac app. Click a gauge to copy a `curl` for that account's live quota (`GET /droidproxy/usage` on the proxy port), so an agent can check its own quota before it runs out.
+- **Usage tracking** -- Claude, Codex, Grok, and Meta Muse OAuth quota windows (5-hour + weekly) as quota bars in the bar panel, just like the Mac app. Click a quota row to copy a `curl` for that account's live quota (`GET /droidproxy/usage` on the proxy port), so an agent can check its own quota before it runs out.
 - **Auto-start daily** -- Optional per-provider time for Claude, Codex, and Meta Muse: DroidProxy sends one tiny request per account then, so the 5-hour window is already underway when you start work and resets sooner in your day.
 - **Grok Imagine and GPT Image** -- OpenAI-compatible image generation through your Grok or Codex subscription. See [Image generation skills](#image-generation-skills).
 - **Remote access** -- Optional remote management with a secret key, and a configurable bind address (beta).
@@ -59,7 +59,7 @@ droidproxy uninstall --purge  # also removes DroidProxy's settings
 
 ## Using it
 
-- **Bar panel** -- click the bar icon to open the panel: server, quota rings, accounts, Factory models, and the provider switches. The icon tint shows the server state. The panel is the only settings surface; there is no settings web page.
+- **Bar panel** -- click the bar icon to open the panel: server, quota bars, accounts, Factory models, and the provider switches. The icon tint shows the server state. The panel is the only settings surface; there is no settings web page.
 - **Settings** -- the bar panel, the launcher entry, or `droidproxy open`. Server control, provider accounts, OAuth quota gauges, Factory models, remote access, and updates.
 - **Factory models** -- in the panel, **Factory custom models → Apply** writes DroidProxy's enabled models into `~/.factory/settings.json` (timestamped backup first). Each model can be switched off under its provider; switching one off also deletes its DroidProxy entry from the Factory config, and switching it back on writes it again. In Droid, use `/model` and search for "DroidProxy:".
 - **Banked resets** -- Codex and Claude accounts with banked usage resets show the count next to their quota gauges. **Use reset** spends one, after a confirmation.
@@ -121,6 +121,11 @@ scripts/build-release.sh 1.2.3 arm64    # build a release tarball into dist/
 ## Releases
 
 Every push to `main` (except documentation-only changes) runs the tests, bumps the patch version, builds x86_64 and arm64 tarballs, signs them, and publishes a GitHub Release. Installed copies pick it up through the updater. A scheduled workflow opens a pull request whenever a new CLIProxyAPI version comes out.
+
+## Contributors
+
+- [Nik Anand](https://github.com/nikships) — creator and maintainer
+- [Jason Holt](https://github.com/kingdomseed) — native panel redesign, per-model Factory toggles, banked resets
 
 ## License
 
