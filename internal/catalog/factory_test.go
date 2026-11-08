@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -343,5 +344,40 @@ func TestApplyFailureMessage(t *testing.T) {
 	}
 	if !strings.HasPrefix(msg, "Failed to update Factory settings: ") {
 		t.Errorf("unexpected failure message: %q", msg)
+	}
+}
+
+// Overlapping applies (rapid panel toggles each fire one) must leave
+// one coherent settings file: valid JSON, each DroidProxy model once.
+// Run with -race.
+func TestApplyFactoryCustomModelsConcurrent(t *testing.T) {
+	isolateHome(t)
+	writeFactoryFile(t, `{"customModels":[{"id":"user-model","model":"m"}]}`)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := ApplyFactoryCustomModels(allEnabled); err != nil {
+				t.Errorf("concurrent apply: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	seen := map[string]int{}
+	for _, m := range modelIDsFromSettings(t, readFactoryFile(t)) {
+		if id, ok := m["id"].(string); ok {
+			seen[id]++
+		}
+	}
+	for id, n := range seen {
+		if n != 1 {
+			t.Errorf("model %s written %d times", id, n)
+		}
+	}
+	if seen["user-model"] != 1 {
+		t.Error("user model lost")
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nikships/droidproxy-omarchy/internal/auth"
@@ -183,7 +184,14 @@ func CheckFactoryModelsInstalled(isProviderEnabled func(auth.ServiceType) bool) 
 //
 // The returned message is the user-facing text for both outcomes; err is
 // non-nil on failure.
+// factoryApplyMu serializes the read/build/write below: rapid panel
+// toggles launch overlapping applies, and an older build landing last
+// would reinstall a model the user just disabled.
+var factoryApplyMu sync.Mutex
+
 func ApplyFactoryCustomModels(isProviderEnabled func(auth.ServiceType) bool) (string, error) {
+	factoryApplyMu.Lock()
+	defer factoryApplyMu.Unlock()
 	path := paths.FactorySettingsPath()
 	_ = os.MkdirAll(filepath.Dir(path), 0o755)
 

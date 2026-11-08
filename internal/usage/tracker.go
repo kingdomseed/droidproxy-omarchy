@@ -359,23 +359,23 @@ func doJSON(client *http.Client, request *http.Request) ([]byte, int, http.Heade
 func (t *Tracker) fetchCodexUsage(account auth.Account) AccountUsage {
 	authData, ok := authValues(account.FilePath)
 	if !ok {
-		return failedAccount(account, "Missing access token")
+		return localFailure(account, "Missing access token")
 	}
 	token, ok := authData["access_token"]
 	if !ok {
-		return failedAccount(account, "Missing access token")
+		return localFailure(account, "Missing access token")
 	}
 	if account.IsAccessExpired() {
-		return failedAccount(account, "Access token expired; it renews on this account's next request")
+		return localFailure(account, "Access token expired; it renews on this account's next request")
 	}
 	client, endpoint := t.clientAndURL("codex")
 	if _, err := url.Parse(endpoint); err != nil {
-		return failedAccount(account, "Invalid usage endpoint")
+		return localFailure(account, "Invalid usage endpoint")
 	}
 
 	request, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
-		return failedAccount(account, "Invalid usage endpoint")
+		return localFailure(account, "Invalid usage endpoint")
 	}
 	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("Accept", "application/json")
@@ -428,11 +428,11 @@ func (t *Tracker) fetchGrokUsage(account auth.Account) AccountUsage {
 
 	client, endpoint := t.clientAndURL("grok")
 	if _, err := url.Parse(endpoint); err != nil {
-		return failedAccount(account, "Invalid usage endpoint")
+		return localFailure(account, "Invalid usage endpoint")
 	}
 	request, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
-		return failedAccount(account, "Invalid usage endpoint")
+		return localFailure(account, "Invalid usage endpoint")
 	}
 	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("X-XAI-Token-Auth", "xai-grok-cli")
@@ -504,11 +504,11 @@ func (t *Tracker) storedMetaUsage(account auth.Account) AccountUsage {
 func (t *Tracker) fetchClaudeUsage(account auth.Account) AccountUsage {
 	authData, ok := authValues(account.FilePath)
 	if !ok {
-		return failedAccount(account, "Missing access token")
+		return localFailure(account, "Missing access token")
 	}
 	token, ok := authData["access_token"]
 	if !ok {
-		return failedAccount(account, "Missing access token")
+		return localFailure(account, "Missing access token")
 	}
 
 	client, endpoint := t.clientAndURL("claude")

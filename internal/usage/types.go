@@ -62,6 +62,11 @@ type AccountUsage struct {
 	// RateLimited (HTTP 429) and RetryAfter drive the polling cache backoff.
 	RateLimited bool       `json:"-"`
 	RetryAfter  *time.Time `json:"-"`
+	// LocalFailure marks failures decided without an upstream request
+	// (missing/expired stored token): the cache must not reserve the
+	// polling budget for them, or a token renewed seconds later would
+	// still show the cached error until the reservation lapses.
+	LocalFailure bool `json:"-"`
 	// ResetCredits is the banked-reset state (Codex and Claude only).
 	ResetCredits *ResetCredits `json:"-"`
 }
@@ -114,6 +119,13 @@ func failedAccount(account auth.Account, message string) AccountUsage {
 		Error:        message,
 		UpdatedAt:    &now,
 	}
+}
+
+// localFailure is failedAccount for checks that never leave the machine.
+func localFailure(account auth.Account, message string) AccountUsage {
+	usage := failedAccount(account, message)
+	usage.LocalFailure = true
+	return usage
 }
 
 func failedResponse(account auth.Account, message string, status int, header http.Header) AccountUsage {

@@ -107,6 +107,10 @@ Panel {
 
   function revealItem(item) {
     if (!item || !flick) return
+    // Provider delegates instantiate every conditional control; hidden
+    // copies share the cursor bindings and must not scroll the view.
+    for (var node = item; node && node !== flick; node = node.parent)
+      if (!node.visible) return
     var top = item.mapToItem(flick.contentItem, 0, 0).y
     var margin = Style.space(12)
     if (top - margin < flick.contentY)
@@ -1489,7 +1493,7 @@ Panel {
         spacing: Style.space(8)
         TextField {
           id: junieField
-          Component.onCompleted: root.junieFieldItem = junieField
+          Component.onCompleted: if (providerColumn.modelData.id === "junie") root.junieFieldItem = junieField
           Layout.fillWidth: true
           password: true
           text: root.junieDraft

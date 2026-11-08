@@ -411,3 +411,31 @@ func TestRecordObservedSwapsEntryAndRacesClean(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// Local credential failures cost no upstream quota, so they must not
+// reserve the polling budget: after a token renewal the very next
+// read refetches instead of serving the cached expiry error.
+func TestLocalFailureDoesNotReserveBudget(t *testing.T) {
+	clock := newTestClock()
+	cache := newUsageCache("", clock.now, noJitter)
+	account := auth.Account{ID: "codex:a@example.com", Email: "a@example.com", Type: auth.Codex, FilePath: "/tmp/usage-cache-tests/codex-a.json"}
+	var calls atomic.Int32
+	fetch := func() AccountUsage {
+		if calls.Add(1) == 1 {
+			return AccountUsage{Error: "Access token expired", LocalFailure: true}
+		}
+		now := clock.now()
+		used := 5.0
+		return AccountUsage{UpdatedAt: &now, Windows: []Window{{Title: "5-hour", UsedPercent: &used}}}
+	}
+	if got := cache.usage(account, fetch); got.Error == "" {
+		t.Fatal("first read should surface the expiry error")
+	}
+	got := cache.usage(account, fetch)
+	if calls.Load() != 2 {
+		t.Fatalf("calls = %d, want 2 (immediate refetch after local failure)", calls.Load())
+	}
+	if got.Error != "" || len(got.Windows) != 1 {
+		t.Fatalf("second read = %+v, want fresh sample", got)
+	}
+}

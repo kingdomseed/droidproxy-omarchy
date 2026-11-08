@@ -208,6 +208,9 @@ func (c *usageCache) finishLocked(key string, account auth.Account, result Accou
 	if result.RetryAfter != nil && result.RetryAfter.After(next) {
 		next = *result.RetryAfter
 	}
+	if result.LocalFailure {
+		next = c.now()
+	}
 
 	entry := &cacheEntry{
 		Error:             usage.Error,
